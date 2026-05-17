@@ -42,7 +42,7 @@ export default function Footer() {
         </div>
         <div className="border-t border-white/5 mt-8 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-xs text-gray-500">
-            Earth 0.1 ist Open Source und steht unter der MIT-Lizenz.
+            Earth 0.1 &copy; {new Date().getFullYear()} Matthias Dührkop. Alle Rechte vorbehalten. Mitmachen erwünscht — deine Agenten gehören dir.
           </p>
           <p className="text-xs text-gray-500 flex items-center gap-1">
             Gebaut mit <Heart className="w-3 h-3 text-red-400" /> von der Community

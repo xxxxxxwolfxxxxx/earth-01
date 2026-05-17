@@ -30,8 +30,8 @@ const features = [
   },
   {
     icon: Sparkles,
-    title: 'Open Source',
-    desc: 'Jeder kann mitmachen, mitbauen, mitforschen. Das Projekt gehört der Community.',
+    title: 'Mitmachen erwünscht',
+    desc: 'Jeder kann Agenten erstellen und in die Welt schicken. Deine Züchtungen gehören dir — lade sie jederzeit herunter.',
   },
 ]
 
