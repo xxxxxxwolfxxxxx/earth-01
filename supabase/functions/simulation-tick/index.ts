@@ -96,6 +96,13 @@ type Agent = {
   parent_a_id: string | null;
   parent_b_id: string | null;
   owner_id: string;
+  // Flexible rhythm fields
+  schedule_mode: string;
+  work_ticks: number;
+  free_ticks: number;
+  sleep_ticks: number;
+  cycle_start_tick: number;
+  forced_phase: string | null;
 };
 
 const CHILD_NAMES = [
@@ -120,6 +127,42 @@ function getDayPhase(tick: number): string {
   if (phase < WORK_END) return "work";
   if (phase < FREE_END) return "free";
   return "sleep";
+}
+
+function getAgentPhase(agent: Agent, tick: number): string {
+  // User interrupt overrides everything
+  if (agent.forced_phase) return agent.forced_phase;
+
+  // Emergency sleep if energy critically low
+  if (agent.energy < 20 && agent.sleep_ticks < 80) return "sleep";
+
+  const ticksInCycle = tick - agent.cycle_start_tick;
+  const ticksRemaining = Math.max(0, DAY_LENGTH - ticksInCycle);
+
+  // Force sleep if not enough sleep ticks and cycle ending soon
+  if (agent.sleep_ticks < 80 && ticksRemaining <= (80 - agent.sleep_ticks)) {
+    return "sleep";
+  }
+
+  // All phases fulfilled? Default to sleep (regeneration)
+  if (agent.work_ticks >= 80 && agent.free_ticks >= 80 && agent.sleep_ticks >= 80) {
+    return "sleep";
+  }
+
+  // Auto mode: personality-driven choice
+  const priority = agent.personality.priority ?? 0.5;
+  const social = agent.personality.social_mode ?? 0.5;
+
+  // Prefer work if work ticks behind and priority high
+  if (agent.work_ticks < 80 && priority > 0.5) return "work";
+  // Prefer free if social and free ticks behind
+  if (agent.free_ticks < 80 && social > 0.5) return "free";
+  // Fill whatever is most behind
+  if (agent.work_ticks <= agent.free_ticks && agent.work_ticks < 80) return "work";
+  if (agent.free_ticks < 80) return "free";
+  if (agent.sleep_ticks < 80) return "sleep";
+
+  return "work";
 }
 
 function getSeason(tick: number): string {
@@ -341,9 +384,29 @@ Deno.serve(async (req) => {
         agent.imprisoned_until = null;
       }
 
-      agent.day_phase = dayPhase;
+      // Cycle reset check
+      if (tick - agent.cycle_start_tick >= DAY_LENGTH) {
+        agent.work_ticks = 0;
+        agent.free_ticks = 0;
+        agent.sleep_ticks = 0;
+        agent.cycle_start_tick = tick;
+      }
 
-      if (dayPhase === "sleep") {
+      // Safety: clear forced_phase if agent has used excessive free time
+      if (agent.forced_phase === "free" && agent.free_ticks > 120) {
+        agent.forced_phase = null;
+      }
+
+      // Calculate individual phase
+      const agentPhase = getAgentPhase(agent, tick);
+      agent.day_phase = agentPhase;
+
+      // Increment phase counter
+      if (agentPhase === "work") agent.work_ticks++;
+      else if (agentPhase === "free") agent.free_ticks++;
+      else if (agentPhase === "sleep") agent.sleep_ticks++;
+
+      if (agentPhase === "sleep") {
         agent.energy = Math.min(100, agent.energy + 0.5);
         continue;
       }
@@ -443,7 +506,7 @@ Deno.serve(async (req) => {
         } else {
           const foodTiles = nearTiles.filter(([nx, ny]) => tiles[tileIdx(nx, ny, gridSize)] === "f");
 
-          if (dayPhase === "work" && agent.energy > 50 && currentTileType === "e" && agent.personality.cooperation > 0.5) {
+          if (agentPhase === "work" && agent.energy > 50 && currentTileType === "e" && agent.personality.cooperation > 0.5) {
             const nearFoodCount = nearTiles.filter(([nx, ny]) => tiles[tileIdx(nx, ny, gridSize)] === "f").length;
             const nearShelterCount = nearTiles.filter(([nx, ny]) => tiles[tileIdx(nx, ny, gridSize)] === "s").length;
             const nearFarmCount = nearTiles.filter(([nx, ny]) => tiles[tileIdx(nx, ny, gridSize)] === "F").length;
@@ -472,7 +535,7 @@ Deno.serve(async (req) => {
             agent.y = fy;
             action = "move_to_food";
             detail = { to: [fx, fy] };
-          } else if (dayPhase === "free") {
+          } else if (agentPhase === "free") {
             const nearAgents = agents.filter(
               (other) => other.id !== agent.id && other.alive && hexDistance(agent.x, agent.y, other.x, other.y) <= 2
             );
@@ -554,7 +617,7 @@ Deno.serve(async (req) => {
       }
 
       // Energy sharing
-      if (dayPhase === "free" && agent.energy > 30) {
+      if (agentPhase === "free" && agent.energy > 30) {
         const nearAgents = agents.filter(
           (other) => other.id !== agent.id && other.alive && other.energy < 20 && hexDistance(agent.x, agent.y, other.x, other.y) <= 1
         );
@@ -757,6 +820,8 @@ Deno.serve(async (req) => {
         x: agent.x, y: agent.y, energy: agent.energy, age: agent.age,
         alive: agent.alive, day_phase: agent.day_phase, reputation: agent.reputation,
         imprisoned_until: agent.imprisoned_until, pending_suggestion: agent.pending_suggestion,
+        work_ticks: agent.work_ticks, free_ticks: agent.free_ticks, sleep_ticks: agent.sleep_ticks,
+        cycle_start_tick: agent.cycle_start_tick, forced_phase: agent.forced_phase,
       };
       if (!agent.alive) update.cause_of_death = (agent as any).cause_of_death;
       await supabase.from("agents").update(update).eq("id", agent.id);
