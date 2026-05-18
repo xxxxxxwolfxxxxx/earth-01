@@ -169,7 +169,10 @@ Deno.serve(async (req) => {
 
       const currentTileType = tiles[tileIdx(agent.x, agent.y, gridSize)];
       const onShelter = currentTileType === "s";
-      const populationPressure = agents.filter(a => a.alive).length > MAX_POPULATION ? 0.3 : 0;
+      const aliveNow = agents.filter(a => a.alive).length;
+      const populationPressure = aliveNow > MAX_POPULATION
+        ? 0.3 + (aliveNow - MAX_POPULATION) * 0.05
+        : 0;
       agent.energy -= energyCost(season, onShelter) + populationPressure;
 
       if (agent.energy <= 0) {
@@ -402,13 +405,13 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Reproduction (only if below population cap)
+    // Reproduction (only if below population cap, max 1 birth per tick)
     const aliveCount = agents.filter((a) => a.alive).length + babyAgents.length;
-    if (tick % 20 === 0 && aliveCount < MAX_POPULATION) {
+    if (tick % 80 === 0 && aliveCount < MAX_POPULATION && babyAgents.length === 0) {
       const fertile = agents.filter((a) => a.alive && a.energy > 65 && !a.imprisoned_until);
       const paired = new Set<string>();
       for (const a of fertile) {
-        if (paired.has(a.id)) continue;
+        if (paired.has(a.id) || babyAgents.length >= 1) continue;
         const partner = fertile.find(
           (b) => b.id !== a.id && !paired.has(b.id) && Math.abs(b.x - a.x) <= 1 && Math.abs(b.y - a.y) <= 1
             && b.reputation > -0.3 && a.reputation > -0.3

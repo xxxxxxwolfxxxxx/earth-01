@@ -1,7 +1,12 @@
-import { Eye } from 'lucide-react'
+import { useState, lazy, Suspense } from 'react'
+import { Eye, Globe2, Grid3x3 } from 'lucide-react'
 import WorldCanvas from '../components/WorldCanvas'
 
+const WorldGlobe = lazy(() => import('../components/WorldGlobe'))
+
 export default function World() {
+  const [view, setView] = useState('3d')
+
   return (
     <div className="max-w-6xl mx-auto px-4 pt-24 pb-16">
       <div className="text-center mb-8">
@@ -15,9 +20,38 @@ export default function World() {
           Beobachte in Echtzeit, wie Agenten ums Überleben kämpfen, Gesellschaften bilden
           und die Welt verändern. Klicke auf einen Agenten für Details.
         </p>
+        <div className="flex justify-center gap-2 mt-4">
+          <button
+            onClick={() => setView('3d')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors border-none cursor-pointer ${
+              view === '3d' ? 'bg-nebula-600 text-white' : 'bg-white/5 text-gray-400 hover:text-white'
+            }`}
+          >
+            <Globe2 className="w-4 h-4" /> 3D Globus
+          </button>
+          <button
+            onClick={() => setView('2d')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors border-none cursor-pointer ${
+              view === '2d' ? 'bg-nebula-600 text-white' : 'bg-white/5 text-gray-400 hover:text-white'
+            }`}
+          >
+            <Grid3x3 className="w-4 h-4" /> 2D Karte
+          </button>
+        </div>
       </div>
 
-      <WorldCanvas />
+      {view === '3d' ? (
+        <Suspense fallback={
+          <div className="flex items-center justify-center py-32 text-gray-400">
+            <div className="animate-spin w-8 h-8 border-2 border-nebula-400 border-t-transparent rounded-full mr-3" />
+            Lade 3D-Globus...
+          </div>
+        }>
+          <WorldGlobe />
+        </Suspense>
+      ) : (
+        <WorldCanvas />
+      )}
 
       <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="p-5 rounded-xl bg-white/[0.03] border border-white/5">
