@@ -144,3 +144,94 @@ export async function submitAgentSuggestion(agentId, suggestion) {
 
   if (error) throw error
 }
+
+// --- Telegram Integration ---
+
+export async function registerTelegram(botToken) {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) throw new Error('Nicht angemeldet')
+
+  const res = await fetch(
+    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/register-telegram`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ bot_token: botToken }),
+    }
+  )
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error || 'Verbindung fehlgeschlagen')
+  return data
+}
+
+export async function unregisterTelegram() {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) throw new Error('Nicht angemeldet')
+
+  const res = await fetch(
+    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/unregister-telegram`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+    }
+  )
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error || 'Trennung fehlgeschlagen')
+  return data
+}
+
+export async function fetchTelegramStatus() {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const { data } = await supabase
+    .from('profiles')
+    .select('telegram_bot_token, telegram_chat_id, telegram_linked_at')
+    .eq('id', user.id)
+    .single()
+
+  if (!data || !data.telegram_bot_token) return null
+
+  const token = data.telegram_bot_token
+  const masked = token.length > 12
+    ? token.slice(0, 5) + '...' + token.slice(-5)
+    : '***'
+
+  return {
+    connected: true,
+    maskedToken: masked,
+    chatId: data.telegram_chat_id,
+    linkedAt: data.telegram_linked_at,
+  }
+}
+
+export async function fetchAgentMessages(agentId, limit = 50) {
+  const { data } = await supabase
+    .from('agent_messages')
+    .select('*')
+    .eq('agent_id', agentId)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+
+  return (data ?? []).reverse()
+}
+
+export function subscribeToMessages(agentId, onMessage) {
+  const id = ++channelCounter
+  const channel = supabase
+    .channel(`agent-messages-${id}`)
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'agent_messages', filter: `agent_id=eq.${agentId}` },
+      (payload) => onMessage(payload.new)
+    )
+    .subscribe()
+
+  return () => supabase.removeChannel(channel)
+}
