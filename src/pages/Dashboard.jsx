@@ -1,16 +1,19 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Navigate, Link } from 'react-router-dom'
-import { Users, Heart, Skull, Clock, MapPin, Brain, Zap, Plus, Sparkles, Loader2 } from 'lucide-react'
+import { Users, Heart, Skull, Clock, MapPin, Brain, Zap, Plus, Sparkles, Loader2, MessageSquare } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useWorld } from '../contexts/WorldContext'
 import { fetchMyAgents, submitAgentSuggestion } from '../lib/worldService'
 import { getAgentDecision } from '../lib/agentBrain'
 import { loadLLMSettings } from '../lib/llmAdapters'
 import LLMConfig from '../components/LLMConfig'
+import TelegramSetup from '../components/TelegramSetup'
+import AgentChat from '../components/AgentChat'
 
 function AgentCard({ agent, worldState, allAgents, tiles, onSuggestionSent }) {
   const [thinking, setThinking] = useState(false)
   const [lastAction, setLastAction] = useState(null)
+  const [showChat, setShowChat] = useState(false)
   const hasLLM = !!loadLLMSettings()
 
   const requestDecision = useCallback(async () => {
@@ -94,6 +97,23 @@ function AgentCard({ agent, worldState, allAgents, tiles, onSuggestionSent }) {
           </button>
           {lastAction && (
             <span className="text-xs text-gray-500 ml-2">{lastAction}</span>
+          )}
+        </div>
+      )}
+
+      {agent.alive && (
+        <div className="mt-3 pt-3 border-t border-white/5">
+          <button
+            onClick={() => setShowChat(!showChat)}
+            className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors"
+          >
+            <MessageSquare className="w-4 h-4" />
+            {showChat ? 'Chat ausblenden' : 'Chat anzeigen'}
+          </button>
+          {showChat && (
+            <div className="mt-3">
+              <AgentChat agentId={agent.id} agentName={agent.name} />
+            </div>
           )}
         </div>
       )}
@@ -196,6 +216,10 @@ export default function Dashboard() {
           )}
         </div>
       )}
+
+      <div className="mt-8">
+        <TelegramSetup />
+      </div>
 
       <div className="mt-8">
         <LLMConfig />
