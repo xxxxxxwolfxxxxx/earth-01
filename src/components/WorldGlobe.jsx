@@ -212,7 +212,7 @@ export default function WorldGlobe() {
             atmosphereAltitude={0.12}
             // Hex land tiles as flat custom meshes (no side-face artifacts)
             objectsData={hexData}
-            objectThreeObject={d => createHexMesh(d.color, 3.5)}
+            objectThreeObject={d => createHexMesh(d.color, 6)}
             objectLat="lat"
             objectLng="lng"
             objectAltitude={0.001}
