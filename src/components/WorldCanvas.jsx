@@ -216,18 +216,52 @@ export default function WorldCanvas() {
                         evt.event_type === 'birth' ? 'text-life-400' :
                         evt.event_type === 'disaster' ? 'text-energy-400' :
                         evt.event_type === 'season_change' ? 'text-star-300' :
+                        evt.event_type === 'arrest' ? 'text-red-300' :
+                        evt.event_type === 'crime' ? 'text-red-500' :
+                        evt.event_type === 'communication' ? 'text-blue-300' :
                         'text-gray-300'
                       }>
                         {evt.event_type === 'death' && `☠ ${evt.detail?.name} (${evt.detail?.cause})`}
                         {evt.event_type === 'birth' && `🌱 ${evt.detail?.child} geboren`}
                         {evt.event_type === 'disaster' && `⚡ ${evt.detail?.type} bei (${evt.detail?.center?.[0]}, ${evt.detail?.center?.[1]})`}
                         {evt.event_type === 'season_change' && `🌍 ${SEASON_LABELS[evt.detail?.season] || evt.detail?.season}`}
+                        {evt.event_type === 'arrest' && `🔒 ${evt.detail?.arrested} verhaftet von ${evt.detail?.by}`}
+                        {evt.event_type === 'crime' && `💀 ${evt.detail?.thief} bestiehlt ${evt.detail?.victim}`}
+                        {evt.event_type === 'communication' && `💬 ${evt.detail?.from} → ${evt.detail?.to}`}
                       </span>
                     </div>
                   ))
                 )}
               </div>
             )}
+          </div>
+
+          {/* Stats */}
+          <div className="p-4 rounded-xl bg-white/[0.03] border border-white/10">
+            <h4 className="font-display text-white font-bold text-sm mb-2">Statistiken</h4>
+            <div className="space-y-1 text-xs text-gray-400">
+              {(() => {
+                const alive = agents.filter(a => a.alive)
+                const avgEnergy = alive.length > 0 ? (alive.reduce((s, a) => s + a.energy, 0) / alive.length).toFixed(0) : 0
+                const avgRep = alive.length > 0 ? (alive.reduce((s, a) => s + a.reputation, 0) / alive.length).toFixed(2) : 0
+                const maxGen = alive.length > 0 ? Math.max(...alive.map(a => a.generation)) : 0
+                const imprisoned = alive.filter(a => a.imprisoned_until).length
+                const births = events.filter(e => e.event_type === 'birth').length
+                const deaths = events.filter(e => e.event_type === 'death').length
+                const crimes = events.filter(e => e.event_type === 'crime').length
+                return (
+                  <>
+                    <div className="flex justify-between"><span>Avg. Energie</span><span className="text-white font-mono">{avgEnergy}</span></div>
+                    <div className="flex justify-between"><span>Avg. Reputation</span><span className="text-white font-mono">{avgRep}</span></div>
+                    <div className="flex justify-between"><span>Max. Generation</span><span className="text-white font-mono">{maxGen}</span></div>
+                    <div className="flex justify-between"><span>Im Gefängnis</span><span className="text-white font-mono">{imprisoned}</span></div>
+                    <div className="flex justify-between"><span>Geburten (sichtbar)</span><span className="text-life-400 font-mono">{births}</span></div>
+                    <div className="flex justify-between"><span>Tode (sichtbar)</span><span className="text-danger-400 font-mono">{deaths}</span></div>
+                    {crimes > 0 && <div className="flex justify-between"><span>Verbrechen</span><span className="text-red-500 font-mono">{crimes}</span></div>}
+                  </>
+                )
+              })()}
+            </div>
           </div>
 
           {/* Legend */}

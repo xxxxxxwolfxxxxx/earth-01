@@ -29,6 +29,13 @@ type Agent = {
   owner_id: string;
 };
 
+const CHILD_NAMES = [
+  "Aria", "Bolt", "Cora", "Dex", "Elia", "Finn", "Gaia", "Hex", "Iris", "Juno",
+  "Kai", "Luna", "Milo", "Nova", "Onyx", "Pax", "Quill", "Rex", "Sol", "Tara",
+  "Uma", "Vex", "Wren", "Xara", "Yuki", "Zara", "Aero", "Blaze", "Cyra", "Dusk",
+  "Echo", "Flux", "Glyph", "Haze", "Ion", "Jett", "Kira", "Lux", "Moss", "Nyx",
+];
+
 const SEASONS = ["spring", "summer", "autumn", "winter"];
 
 function getDayPhase(tick: number): string {
@@ -196,10 +203,32 @@ Deno.serve(async (req) => {
               (other) => other.id !== agent.id && other.alive && Math.abs(other.x - agent.x) <= 2 && Math.abs(other.y - agent.y) <= 2
             );
             if (nearAgents.length > 0 && agent.personality.social_mode > 0.4) {
-              action = "socialize";
-              const partner = nearAgents[Math.floor(Math.random() * nearAgents.length)];
-              agent.reputation = Math.min(1, agent.reputation + 0.02);
-              detail = { with: partner.name };
+              const goodPartners = nearAgents.filter((a) => a.reputation >= -0.2);
+              const partner = goodPartners.length > 0
+                ? goodPartners[Math.floor(Math.random() * goodPartners.length)]
+                : null;
+              if (partner) {
+                action = "socialize";
+                agent.reputation = Math.min(1, agent.reputation + 0.02);
+                partner.reputation = Math.min(1, partner.reputation + 0.01);
+                detail = { with: partner.name };
+              } else {
+                action = "avoid";
+                detail = { reason: "no_trustworthy_neighbors" };
+              }
+            } else if (nearAgents.length > 0 && agent.personality.cooperation < 0.3 && agent.energy < 40) {
+              const victim = nearAgents.find((a) => a.energy > 30);
+              if (victim) {
+                const stolen = Math.min(10, victim.energy - 10);
+                if (stolen > 0) {
+                  agent.energy = Math.min(100, agent.energy + stolen);
+                  victim.energy -= stolen;
+                  agent.reputation = Math.max(-1, agent.reputation - 0.15);
+                  action = "steal";
+                  detail = { from: victim.name, amount: stolen };
+                  newEvents.push({ tick, event_type: "crime", detail: { thief: agent.name, victim: victim.name, amount: stolen } });
+                }
+              }
             } else {
               const nx = agent.x + Math.floor(Math.random() * 3) - 1;
               const ny = agent.y + Math.floor(Math.random() * 3) - 1;
@@ -256,6 +285,54 @@ Deno.serve(async (req) => {
       newActions.push({ agent_id: agent.id, tick, action_type: action, detail });
     }
 
+    // Arrest mechanic: agents can arrest nearby agents with bad reputation
+    if (dayPhase === "work" || dayPhase === "free") {
+      for (const agent of agents) {
+        if (!agent.alive || agent.imprisoned_until) continue;
+        const nearAgents = agents.filter(
+          (other) => other.id !== agent.id && other.alive && !other.imprisoned_until
+            && Math.abs(other.x - agent.x) <= 1 && Math.abs(other.y - agent.y) <= 1
+        );
+        for (const target of nearAgents) {
+          if (target.reputation >= -0.2) continue;
+          const witnesses = nearAgents.filter((w) => w.id !== target.id && w.reputation > 0);
+          if (witnesses.length >= 1 && agent.reputation > 0) {
+            target.imprisoned_until = tick + 100;
+            target.reputation = Math.max(-1, target.reputation - 0.1);
+            agent.reputation = Math.min(1, agent.reputation + 0.03);
+            newEvents.push({
+              tick,
+              event_type: "arrest",
+              detail: { arrested: target.name, by: agent.name, until: tick + 100 },
+            });
+            newActions.push({
+              agent_id: agent.id, tick, action_type: "arrest",
+              detail: { target: target.name, reason: "low_reputation" },
+            });
+          }
+        }
+      }
+    }
+
+    // Communication: nearby agents exchange messages during free time
+    if (dayPhase === "free" && tick % 5 === 0) {
+      for (const agent of agents) {
+        if (!agent.alive || agent.imprisoned_until) continue;
+        if (agent.personality.social_mode < 0.5) continue;
+        const nearAgents = agents.filter(
+          (other) => other.id !== agent.id && other.alive && !other.imprisoned_until
+            && Math.abs(other.x - agent.x) <= 2 && Math.abs(other.y - agent.y) <= 2
+        );
+        if (nearAgents.length === 0) continue;
+        const partner = nearAgents[Math.floor(Math.random() * nearAgents.length)];
+        newEvents.push({
+          tick,
+          event_type: "communication",
+          detail: { from: agent.name, to: partner.name, topic: agent.energy < 40 ? "hunger" : agent.reputation > 0.5 ? "cooperation" : "exploration" },
+        });
+      }
+    }
+
     // Reproduction
     if (tick % 20 === 0) {
       const fertile = agents.filter((a) => a.alive && a.energy > 65 && !a.imprisoned_until);
@@ -263,7 +340,8 @@ Deno.serve(async (req) => {
       for (const a of fertile) {
         if (paired.has(a.id)) continue;
         const partner = fertile.find(
-          (b) => b.id !== a.id && !paired.has(b.id) && Math.abs(b.x - a.x) <= 1 && Math.abs(b.y - a.y) <= 1 && b.reputation > -0.3
+          (b) => b.id !== a.id && !paired.has(b.id) && Math.abs(b.x - a.x) <= 1 && Math.abs(b.y - a.y) <= 1
+            && b.reputation > -0.3 && a.reputation > -0.3
         );
         if (!partner) continue;
         paired.add(a.id);
@@ -286,15 +364,18 @@ Deno.serve(async (req) => {
           ? spawnTiles[Math.floor(Math.random() * spawnTiles.length)]
           : [a.x, a.y];
 
+        const gen = Math.max(a.generation, partner.generation) + 1;
+        const childName = CHILD_NAMES[Math.floor(Math.random() * CHILD_NAMES.length)] + "-" + gen;
+
         babyAgents.push({
           owner_id: a.owner_id,
-          name: `${a.name.slice(0, 10)}-Jr`,
+          name: childName,
           x: cx,
           y: cy,
           energy: 50,
           max_age: 2000 + Math.floor(Math.random() * 800),
           personality: childPersonality as any,
-          generation: Math.max(a.generation, partner.generation) + 1,
+          generation: gen,
           parent_a_id: a.id,
           parent_b_id: partner.id,
         });
@@ -302,7 +383,7 @@ Deno.serve(async (req) => {
         newEvents.push({
           tick,
           event_type: "birth",
-          detail: { parent_a: a.name, parent_b: partner.name, child: `${a.name.slice(0, 10)}-Jr` },
+          detail: { parent_a: a.name, parent_b: partner.name, child: childName },
         });
       }
     }
