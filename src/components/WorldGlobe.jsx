@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import Globe from 'react-globe.gl'
+import * as THREE from 'three'
 import { useWorld } from '../contexts/WorldContext'
 import { isLand, landBaseColor, OCEAN_COLOR } from '../lib/landMask'
 
@@ -31,19 +32,24 @@ function gridToGeo(col, row, gridSize) {
   return { lat, lng }
 }
 
-// Create a hex-shaped GeoJSON polygon in lat/lng space (pointy-top)
-function hexGeoPolygon(centerLat, centerLng, latR, lngR) {
-  const coords = []
+// Create a flat hex THREE.js mesh (no side faces = no artifacts)
+function createHexMesh(color, size) {
+  const shape = new THREE.Shape()
   for (let i = 0; i < 6; i++) {
     const angleDeg = 60 * i - 30
     const angleRad = (Math.PI / 180) * angleDeg
-    coords.push([
-      centerLng + lngR * Math.cos(angleRad),
-      centerLat + latR * Math.sin(angleRad),
-    ])
+    const x = size * Math.cos(angleRad)
+    const y = size * Math.sin(angleRad)
+    if (i === 0) shape.moveTo(x, y)
+    else shape.lineTo(x, y)
   }
-  coords.push(coords[0]) // close ring
-  return { type: 'Polygon', coordinates: [coords] }
+  shape.closePath()
+  const geometry = new THREE.ShapeGeometry(shape)
+  const material = new THREE.MeshBasicMaterial({
+    color: new THREE.Color(color),
+    side: THREE.DoubleSide,
+  })
+  return new THREE.Mesh(geometry, material)
 }
 
 function rgbStr([r, g, b]) {
@@ -69,11 +75,11 @@ export default function WorldGlobe() {
 
   const gridSize = worldState?.grid_size ?? 30
 
-  // Hex size in degrees (half a cell-step with slight overlap)
+  // Hex size in degrees — visible but not overlapping
   const latStep = 160 / (gridSize - 1)
   const lngStep = 320 / (gridSize - 1)
-  const hexLatR = latStep * 0.55
-  const hexLngR = lngStep * 0.55
+  const hexLatR = latStep * 0.38
+  const hexLngR = lngStep * 0.38
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -97,46 +103,29 @@ export default function WorldGlobe() {
     }
   }, [globeReady])
 
-  // Hex polygons for ALL tiles (land + ocean) — matches 2D canvas visually
-  const hexPolygons = useMemo(() => {
+  // Hex data for land tiles — rendered as flat custom THREE.js objects
+  const hexData = useMemo(() => {
     if (!tiles) return []
-    const polys = []
+    const data = []
     for (let row = 0; row < gridSize; row++) {
       for (let col = 0; col < gridSize; col++) {
+        if (!isLand(col, row)) continue
         const tile = tiles[row * gridSize + col] || 'e'
         const { lat, lng } = gridToGeo(col, row, gridSize)
         const lngOffset = (row % 2 === 1) ? lngStep * 0.5 : 0
-        const geo = hexGeoPolygon(lat, lng + lngOffset, hexLatR, hexLngR)
-        const land = isLand(col, row)
 
-        let color, sideColor, altitude
-        if (!land) {
-          // Ocean — dark blue, matching 2D canvas ocean color
-          const depth = Math.sin(col * 0.4) * 8 + Math.cos(row * 0.3) * 5
-          const r = OCEAN_COLOR[0] + depth
-          const g = OCEAN_COLOR[1] + depth
-          const b = OCEAN_COLOR[2] + depth + 5
-          color = `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`
-          sideColor = `rgb(${Math.round(r - 5)},${Math.round(g - 5)},${Math.round(b - 5)})`
-          altitude = 0.001
-        } else if (tile !== 'e' && TILE_COLORS[tile]) {
-          // Special tile (food, building, shelter, etc.)
+        let color
+        if (tile !== 'e' && TILE_COLORS[tile]) {
           color = TILE_COLORS[tile]
-          sideColor = TILE_COLORS[tile]
-          altitude = 0.008
         } else {
-          // Empty land — terrain color based on latitude
-          const lc = landBaseColor(row)
-          color = rgbStr(lc)
-          sideColor = rgbStr([lc[0] - 20, lc[1] - 20, lc[2] - 20])
-          altitude = 0.004
+          color = rgbStr(landBaseColor(row))
         }
 
-        polys.push({ geo, color, sideColor, altitude, col, row, tile, land })
+        data.push({ lat, lng: lng + lngOffset, color, col, row, tile })
       }
     }
-    return polys
-  }, [tiles, gridSize, hexLatR, hexLngR, lngStep])
+    return data
+  }, [tiles, gridSize, lngStep])
 
   // Agent points (on top of hex tiles)
   const agentPoints = useMemo(() => {
@@ -149,8 +138,8 @@ export default function WorldGlobe() {
           ...a,
           lat, lng: lng + lngOffset,
           color: getAgentColor(a),
-          size: 0.5 + (a.energy / 100) * 0.3,
-          altitude: 0.015,
+          size: 0.35 + (a.energy / 100) * 0.25,
+          altitude: 0.012,
         }
       })
   }, [agents, gridSize, lngStep])
@@ -221,13 +210,13 @@ export default function WorldGlobe() {
             globeImageUrl={DARK_GLOBE}
             atmosphereColor="#6366f1"
             atmosphereAltitude={0.12}
-            // Hex land polygons
-            polygonsData={hexPolygons}
-            polygonGeoJsonGeometry={d => d.geo}
-            polygonCapColor={d => d.color}
-            polygonSideColor={d => d.sideColor}
-            polygonAltitude={d => d.altitude}
-            polygonStrokeColor={() => 'rgba(255,255,255,0.08)'}
+            // Hex land tiles as flat custom meshes (no side-face artifacts)
+            objectsData={hexData}
+            objectThreeObject={d => createHexMesh(d.color, 3.5)}
+            objectLat="lat"
+            objectLng="lng"
+            objectAltitude={0.001}
+            objectFacesSurface={true}
             // Agent points
             pointsData={agentPoints}
             pointLat="lat"
