@@ -1,11 +1,19 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import Globe from 'react-globe.gl'
 import { useWorld } from '../contexts/WorldContext'
-import { isLand, landBaseColor } from '../lib/landMask'
+import { isLand, landBaseColor, OCEAN_COLOR } from '../lib/landMask'
 
-const EARTH_TEXTURE = 'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg'
-const BUMP_TEXTURE = 'https://unpkg.com/three-globe/example/img/earth-topology.png'
 const SKY_TEXTURE = 'https://unpkg.com/three-globe/example/img/night-sky.png'
+
+// 1x1 pixel dark ocean globe texture (no earth image)
+const DARK_GLOBE = (() => {
+  const c = document.createElement('canvas')
+  c.width = 1; c.height = 1
+  const ctx = c.getContext('2d')
+  ctx.fillStyle = '#0a1e3d'
+  ctx.fillRect(0, 0, 1, 1)
+  return c.toDataURL()
+})()
 
 const TILE_COLORS = {
   f: '#22c55e', w: '#3b82f6', d: '#ef4444', t: '#16a34a',
@@ -89,36 +97,42 @@ export default function WorldGlobe() {
     }
   }, [globeReady])
 
-  // Hex polygons for land tiles and special tiles
+  // Hex polygons for ALL tiles (land + ocean) — matches 2D canvas visually
   const hexPolygons = useMemo(() => {
     if (!tiles) return []
     const polys = []
     for (let row = 0; row < gridSize; row++) {
       for (let col = 0; col < gridSize; col++) {
-        if (!isLand(col, row)) continue
         const tile = tiles[row * gridSize + col] || 'e'
         const { lat, lng } = gridToGeo(col, row, gridSize)
-        // Offset every other row for hex pattern
         const lngOffset = (row % 2 === 1) ? lngStep * 0.5 : 0
         const geo = hexGeoPolygon(lat, lng + lngOffset, hexLatR, hexLngR)
+        const land = isLand(col, row)
 
-        let color, sideColor
-        if (tile !== 'e' && TILE_COLORS[tile]) {
+        let color, sideColor, altitude
+        if (!land) {
+          // Ocean — dark blue, matching 2D canvas ocean color
+          const depth = Math.sin(col * 0.4) * 8 + Math.cos(row * 0.3) * 5
+          const r = OCEAN_COLOR[0] + depth
+          const g = OCEAN_COLOR[1] + depth
+          const b = OCEAN_COLOR[2] + depth + 5
+          color = `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`
+          sideColor = `rgb(${Math.round(r - 5)},${Math.round(g - 5)},${Math.round(b - 5)})`
+          altitude = 0.001
+        } else if (tile !== 'e' && TILE_COLORS[tile]) {
+          // Special tile (food, building, shelter, etc.)
           color = TILE_COLORS[tile]
           sideColor = TILE_COLORS[tile]
+          altitude = 0.008
         } else {
+          // Empty land — terrain color based on latitude
           const lc = landBaseColor(row)
           color = rgbStr(lc)
           sideColor = rgbStr([lc[0] - 20, lc[1] - 20, lc[2] - 20])
+          altitude = 0.004
         }
 
-        polys.push({
-          geo,
-          color,
-          sideColor,
-          altitude: tile !== 'e' && TILE_COLORS[tile] ? 0.008 : 0.004,
-          col, row, tile,
-        })
+        polys.push({ geo, color, sideColor, altitude, col, row, tile, land })
       }
     }
     return polys
@@ -203,11 +217,10 @@ export default function WorldGlobe() {
             ref={globeRef}
             width={dimensions.width}
             height={dimensions.height}
-            globeImageUrl={EARTH_TEXTURE}
-            bumpImageUrl={BUMP_TEXTURE}
             backgroundImageUrl={SKY_TEXTURE}
+            globeImageUrl={DARK_GLOBE}
             atmosphereColor="#6366f1"
-            atmosphereAltitude={0.15}
+            atmosphereAltitude={0.12}
             // Hex land polygons
             polygonsData={hexPolygons}
             polygonGeoJsonGeometry={d => d.geo}
