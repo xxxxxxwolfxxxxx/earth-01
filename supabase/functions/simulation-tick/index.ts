@@ -142,15 +142,47 @@ function foodSpawnRate(season: string): number {
   }
 }
 
-function neighbors(x: number, y: number, gridSize: number): [number, number][] {
-  const dirs: [number, number][] = [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1]];
-  return dirs
+// Hex neighbors (odd-r offset, pointy-top)
+const HEX_EVEN: [number, number][] = [[-1,-1],[0,-1],[-1,0],[1,0],[-1,1],[0,1]];
+const HEX_ODD:  [number, number][] = [[0,-1],[1,-1],[-1,0],[1,0],[0,1],[1,1]];
+
+function hexNeighbors(x: number, y: number, gridSize: number): [number, number][] {
+  const offsets = y % 2 === 0 ? HEX_EVEN : HEX_ODD;
+  return offsets
     .map(([dx, dy]) => [x + dx, y + dy] as [number, number])
     .filter(([nx, ny]) => nx >= 0 && ny >= 0 && nx < gridSize && ny < gridSize);
 }
 
+function offsetToCube(col: number, row: number): [number, number, number] {
+  const q = col - Math.floor((row - (row & 1)) / 2);
+  const r = row;
+  return [q, r, -q - r];
+}
+
+function hexDistance(col1: number, row1: number, col2: number, row2: number): number {
+  const [q1, r1, s1] = offsetToCube(col1, row1);
+  const [q2, r2, s2] = offsetToCube(col2, row2);
+  return Math.max(Math.abs(q1 - q2), Math.abs(r1 - r2), Math.abs(s1 - s2));
+}
+
+function hexCellsInRadius(col: number, row: number, radius: number, gridSize: number): [number, number][] {
+  const [cq, cr] = offsetToCube(col, row);
+  const cells: [number, number][] = [];
+  for (let dq = -radius; dq <= radius; dq++) {
+    for (let dr = Math.max(-radius, -dq - radius); dr <= Math.min(radius, -dq + radius); dr++) {
+      const q = cq + dq;
+      const r = cr + dr;
+      const c = q + Math.floor((r - (r & 1)) / 2);
+      if (c >= 0 && r >= 0 && c < gridSize && r < gridSize) {
+        cells.push([c, r]);
+      }
+    }
+  }
+  return cells;
+}
+
 function landNeighbors(x: number, y: number, gridSize: number): [number, number][] {
-  return neighbors(x, y, gridSize).filter(([nx, ny]) => isLand(nx, ny));
+  return hexNeighbors(x, y, gridSize).filter(([nx, ny]) => isLand(nx, ny));
 }
 
 function tileIdx(x: number, y: number, gridSize: number): number {
@@ -375,7 +407,7 @@ Deno.serve(async (req) => {
             detail = { to: [agent.x, agent.y], road_bonus: onRoad };
           } else {
             // Check for port-based ocean crossing
-            const hasPort = neighbors(agent.x, agent.y, gridSize).some(
+            const hasPort = hexNeighbors(agent.x, agent.y, gridSize).some(
               ([nx, ny]) => tiles[tileIdx(nx, ny, gridSize)] === "P"
             );
             if (hasPort) {
@@ -442,7 +474,7 @@ Deno.serve(async (req) => {
             detail = { to: [fx, fy] };
           } else if (dayPhase === "free") {
             const nearAgents = agents.filter(
-              (other) => other.id !== agent.id && other.alive && Math.abs(other.x - agent.x) <= 2 && Math.abs(other.y - agent.y) <= 2
+              (other) => other.id !== agent.id && other.alive && hexDistance(agent.x, agent.y, other.x, other.y) <= 2
             );
             if (nearAgents.length > 0 && agent.personality.social_mode > 0.4) {
               const goodPartners = nearAgents.filter((a) => a.reputation >= -0.2);
@@ -524,7 +556,7 @@ Deno.serve(async (req) => {
       // Energy sharing
       if (dayPhase === "free" && agent.energy > 30) {
         const nearAgents = agents.filter(
-          (other) => other.id !== agent.id && other.alive && other.energy < 20 && Math.abs(other.x - agent.x) <= 1 && Math.abs(other.y - agent.y) <= 1
+          (other) => other.id !== agent.id && other.alive && other.energy < 20 && hexDistance(agent.x, agent.y, other.x, other.y) <= 1
         );
         if (nearAgents.length > 0 && agent.personality.cooperation > 0.6) {
           const recipient = nearAgents[0];
@@ -547,7 +579,7 @@ Deno.serve(async (req) => {
         if (!agent.alive || agent.imprisoned_until) continue;
         const nearAgents = agents.filter(
           (other) => other.id !== agent.id && other.alive && !other.imprisoned_until
-            && Math.abs(other.x - agent.x) <= 1 && Math.abs(other.y - agent.y) <= 1
+            && hexDistance(agent.x, agent.y, other.x, other.y) <= 1
         );
         for (const target of nearAgents) {
           if (target.reputation >= -0.2) continue;
@@ -569,7 +601,7 @@ Deno.serve(async (req) => {
         if (agent.personality.social_mode < 0.5) continue;
         const nearAgents = agents.filter(
           (other) => other.id !== agent.id && other.alive && !other.imprisoned_until
-            && Math.abs(other.x - agent.x) <= 2 && Math.abs(other.y - agent.y) <= 2
+            && hexDistance(agent.x, agent.y, other.x, other.y) <= 2
         );
         if (nearAgents.length === 0) continue;
         const partner = nearAgents[Math.floor(Math.random() * nearAgents.length)];
@@ -588,7 +620,7 @@ Deno.serve(async (req) => {
       for (const a of fertile) {
         if (paired.has(a.id) || babyAgents.length >= 1) continue;
         const partner = fertile.find(
-          (b) => b.id !== a.id && !paired.has(b.id) && Math.abs(b.x - a.x) <= 1 && Math.abs(b.y - a.y) <= 1
+          (b) => b.id !== a.id && !paired.has(b.id) && hexDistance(a.x, a.y, b.x, b.y) <= 1
             && b.reputation > -0.3 && a.reputation > -0.3
         );
         if (!partner) continue;
@@ -651,14 +683,12 @@ Deno.serve(async (req) => {
       for (let y = 0; y < gridSize; y++) {
         for (let x = 0; x < gridSize; x++) {
           if (tiles[tileIdx(x, y, gridSize)] === "F") {
-            for (let dy = -FARM_SPAWN_RADIUS; dy <= FARM_SPAWN_RADIUS; dy++) {
-              for (let dx = -FARM_SPAWN_RADIUS; dx <= FARM_SPAWN_RADIUS; dx++) {
-                const nx = x + dx, ny = y + dy;
-                if (nx >= 0 && ny >= 0 && nx < gridSize && ny < gridSize && isLand(nx, ny)) {
-                  const idx = tileIdx(nx, ny, gridSize);
-                  if (tiles[idx] === "e" && Math.random() < FARM_SPAWN_CHANCE) {
-                    tiles[idx] = "f";
-                  }
+            const farmCells = hexCellsInRadius(x, y, FARM_SPAWN_RADIUS, gridSize);
+            for (const [nx, ny] of farmCells) {
+              if (isLand(nx, ny)) {
+                const idx = tileIdx(nx, ny, gridSize);
+                if (tiles[idx] === "e" && Math.random() < FARM_SPAWN_CHANCE) {
+                  tiles[idx] = "f";
                 }
               }
             }
@@ -680,15 +710,13 @@ Deno.serve(async (req) => {
         const [cx, cy] = landCells[Math.floor(Math.random() * landCells.length)];
         const radius = 2 + Math.floor(Math.random() * 2);
         let affected = 0;
-        for (let dy = -radius; dy <= radius; dy++) {
-          for (let dx = -radius; dx <= radius; dx++) {
-            const nx = cx + dx, ny = cy + dy;
-            if (nx >= 0 && ny >= 0 && nx < gridSize && ny < gridSize && isLand(nx, ny)) {
-              const idx = tileIdx(nx, ny, gridSize);
-              if (tiles[idx] === "f" || tiles[idx] === "t") {
-                tiles[idx] = "e";
-                affected++;
-              }
+        const disasterCells = hexCellsInRadius(cx, cy, radius, gridSize);
+        for (const [nx, ny] of disasterCells) {
+          if (isLand(nx, ny)) {
+            const idx = tileIdx(nx, ny, gridSize);
+            if (tiles[idx] === "f" || tiles[idx] === "t") {
+              tiles[idx] = "e";
+              affected++;
             }
           }
         }
@@ -697,7 +725,7 @@ Deno.serve(async (req) => {
           newEvents.push({ tick, event_type: "disaster", detail: { type: disasterType, center: [cx, cy], radius, tiles_destroyed: affected } });
 
           for (const agent of agents) {
-            if (agent.alive && Math.abs(agent.x - cx) <= radius && Math.abs(agent.y - cy) <= radius) {
+            if (agent.alive && hexDistance(agent.x, agent.y, cx, cy) <= radius) {
               const damage = 10 + Math.random() * 15;
               agent.energy -= damage;
               if (agent.energy <= 0) {
