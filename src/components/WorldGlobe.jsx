@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import Globe from 'react-globe.gl'
 import { useWorld } from '../contexts/WorldContext'
+import { isLand, landBaseColor } from '../lib/landMask'
 
 const EARTH_TEXTURE = 'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg'
 const BUMP_TEXTURE = 'https://unpkg.com/three-globe/example/img/earth-topology.png'
@@ -8,7 +9,7 @@ const SKY_TEXTURE = 'https://unpkg.com/three-globe/example/img/night-sky.png'
 
 const TILE_COLORS = {
   f: '#22c55e', w: '#3b82f6', d: '#ef4444', t: '#16a34a',
-  b: '#a855f7', s: '#eab308', p: '#7f1d1d', r: '#78716c', F: '#4caf50',
+  b: '#a855f7', s: '#eab308', p: '#7f1d1d', r: '#78716c', F: '#4caf50', P: '#64a0dc',
 }
 
 const SEASON_LABELS = { spring: 'Frühling', summer: 'Sommer', autumn: 'Herbst', winter: 'Winter' }
@@ -16,10 +17,29 @@ const PHASE_LABELS = { work: 'Arbeit', free: 'Freizeit', sleep: 'Schlaf' }
 const SEASON_COLORS = { spring: '#22c55e', summer: '#fbbf24', autumn: '#f97316', winter: '#60a5fa' }
 const PHASE_COLORS = { work: '#f97316', free: '#34d399', sleep: '#60a5fa' }
 
-function gridToGeo(x, y, gridSize) {
-  const lat = 80 - (y / (gridSize - 1)) * 160
-  const lng = -160 + (x / (gridSize - 1)) * 320
+function gridToGeo(col, row, gridSize) {
+  const lat = 80 - (row / (gridSize - 1)) * 160
+  const lng = -160 + (col / (gridSize - 1)) * 320
   return { lat, lng }
+}
+
+// Create a hex-shaped GeoJSON polygon in lat/lng space (pointy-top)
+function hexGeoPolygon(centerLat, centerLng, latR, lngR) {
+  const coords = []
+  for (let i = 0; i < 6; i++) {
+    const angleDeg = 60 * i - 30
+    const angleRad = (Math.PI / 180) * angleDeg
+    coords.push([
+      centerLng + lngR * Math.cos(angleRad),
+      centerLat + latR * Math.sin(angleRad),
+    ])
+  }
+  coords.push(coords[0]) // close ring
+  return { type: 'Polygon', coordinates: [coords] }
+}
+
+function rgbStr([r, g, b]) {
+  return `rgb(${r},${g},${b})`
 }
 
 function getAgentColor(agent) {
@@ -40,6 +60,12 @@ export default function WorldGlobe() {
   const [globeReady, setGlobeReady] = useState(false)
 
   const gridSize = worldState?.grid_size ?? 30
+
+  // Hex size in degrees (half a cell-step with slight overlap)
+  const latStep = 160 / (gridSize - 1)
+  const lngStep = 320 / (gridSize - 1)
+  const hexLatR = latStep * 0.55
+  const hexLngR = lngStep * 0.55
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -63,36 +89,57 @@ export default function WorldGlobe() {
     }
   }, [globeReady])
 
-  const tilePoints = useMemo(() => {
+  // Hex polygons for land tiles and special tiles
+  const hexPolygons = useMemo(() => {
     if (!tiles) return []
-    const pts = []
-    for (let y = 0; y < gridSize; y++) {
-      for (let x = 0; x < gridSize; x++) {
-        const tile = tiles[y * gridSize + x] || 'e'
-        if (tile === 'e') continue
-        const { lat, lng } = gridToGeo(x, y, gridSize)
-        pts.push({ lat, lng, color: TILE_COLORS[tile] || '#666', size: 0.4, altitude: 0.001, label: tile })
+    const polys = []
+    for (let row = 0; row < gridSize; row++) {
+      for (let col = 0; col < gridSize; col++) {
+        if (!isLand(col, row)) continue
+        const tile = tiles[row * gridSize + col] || 'e'
+        const { lat, lng } = gridToGeo(col, row, gridSize)
+        // Offset every other row for hex pattern
+        const lngOffset = (row % 2 === 1) ? lngStep * 0.5 : 0
+        const geo = hexGeoPolygon(lat, lng + lngOffset, hexLatR, hexLngR)
+
+        let color, sideColor
+        if (tile !== 'e' && TILE_COLORS[tile]) {
+          color = TILE_COLORS[tile]
+          sideColor = TILE_COLORS[tile]
+        } else {
+          const lc = landBaseColor(row)
+          color = rgbStr(lc)
+          sideColor = rgbStr([lc[0] - 20, lc[1] - 20, lc[2] - 20])
+        }
+
+        polys.push({
+          geo,
+          color,
+          sideColor,
+          altitude: tile !== 'e' && TILE_COLORS[tile] ? 0.008 : 0.004,
+          col, row, tile,
+        })
       }
     }
-    return pts
-  }, [tiles, gridSize])
+    return polys
+  }, [tiles, gridSize, hexLatR, hexLngR, lngStep])
 
+  // Agent points (on top of hex tiles)
   const agentPoints = useMemo(() => {
     return agents
       .filter(a => a.alive)
       .map(a => {
         const { lat, lng } = gridToGeo(a.x, a.y, gridSize)
+        const lngOffset = (a.y % 2 === 1) ? lngStep * 0.5 : 0
         return {
           ...a,
-          lat, lng,
+          lat, lng: lng + lngOffset,
           color: getAgentColor(a),
-          size: 0.6 + (a.energy / 100) * 0.4,
-          altitude: 0.02,
+          size: 0.5 + (a.energy / 100) * 0.3,
+          altitude: 0.015,
         }
       })
-  }, [agents, gridSize])
-
-  const allPoints = useMemo(() => [...tilePoints, ...agentPoints], [tilePoints, agentPoints])
+  }, [agents, gridSize, lngStep])
 
   const handlePointClick = useCallback((point) => {
     if (point.name) {
@@ -161,7 +208,15 @@ export default function WorldGlobe() {
             backgroundImageUrl={SKY_TEXTURE}
             atmosphereColor="#6366f1"
             atmosphereAltitude={0.15}
-            pointsData={allPoints}
+            // Hex land polygons
+            polygonsData={hexPolygons}
+            polygonGeoJsonGeometry={d => d.geo}
+            polygonCapColor={d => d.color}
+            polygonSideColor={d => d.sideColor}
+            polygonAltitude={d => d.altitude}
+            polygonStrokeColor={() => 'rgba(255,255,255,0.08)'}
+            // Agent points
+            pointsData={agentPoints}
             pointLat="lat"
             pointLng="lng"
             pointColor="color"
