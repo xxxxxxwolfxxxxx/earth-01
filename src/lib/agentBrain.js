@@ -1,6 +1,6 @@
 import { queryLLM, loadLLMSettings } from './llmAdapters'
 
-const VALID_ACTIONS = ['move', 'eat', 'drink', 'build', 'share', 'socialize', 'explore', 'rest', 'arrest']
+const VALID_ACTIONS = ['move', 'eat', 'drink', 'build', 'share', 'socialize', 'explore', 'rest', 'arrest', 'farm']
 
 const SEASON_DE = { spring: 'Frühling', summer: 'Sommer', autumn: 'Herbst', winter: 'Winter' }
 const PHASE_DE = { work: 'Arbeit', free: 'Freizeit', sleep: 'Schlaf' }
@@ -21,6 +21,8 @@ function describeNearby(agent, agents, tiles, gridSize) {
       else if (tile === 'd') lines.push(`  Gefahr bei (${nx},${ny})`)
       else if (tile === 'b') lines.push(`  Gebäude bei (${nx},${ny})`)
       else if (tile === 's') lines.push(`  Unterschlupf bei (${nx},${ny})`)
+      else if (tile === 'F') lines.push(`  Farm bei (${nx},${ny})`)
+      else if (tile === 'r') lines.push(`  Straße bei (${nx},${ny})`)
     }
   }
 
@@ -73,8 +75,11 @@ REGELN:
 - Wasser ("drink") gibt +5 Energie
 - "socialize" erhöht Reputation (braucht Agent in der Nähe)
 - "share" teilt Energie mit hungrigem Nachbar-Agent
-- "build" erstellt Gebäude (kostet Energie)
-- "arrest" verhaftet Agent mit negativer Reputation (braucht Nähe)
+- "build" erstellt Gebäude (kostet 25 Energie, nur auf leeren Tiles)
+- "build" mit type: "s" baut Unterschlupf (20 Energie, schützt vor Winter)
+- "build" mit type: "F" baut Farm (30 Energie, spawnt Nahrung in der Nähe)
+- "build" mit type: "r" baut Straße (10 Energie, schnellere Bewegung)
+- "arrest" verhaftet Agent mit negativer Reputation (braucht Nähe + Zeugen)
 - "rest" regeneriert leicht
 - "move" bewegt dich (gib direction an: north/south/east/west)
 - "explore" bewegt dich zufällig

@@ -15,6 +15,7 @@ const TILE_COLORS = {
   s: [234, 179, 8],
   p: [127, 29, 29],
   r: [120, 113, 108],
+  F: [76, 175, 80],
 }
 
 const SEASON_LABELS = { spring: 'Frühling', summer: 'Sommer', autumn: 'Herbst', winter: 'Winter' }
@@ -219,6 +220,7 @@ export default function WorldCanvas() {
                         evt.event_type === 'arrest' ? 'text-red-300' :
                         evt.event_type === 'crime' ? 'text-red-500' :
                         evt.event_type === 'communication' ? 'text-blue-300' :
+                        evt.event_type === 'build' ? 'text-purple-300' :
                         'text-gray-300'
                       }>
                         {evt.event_type === 'death' && `☠ ${evt.detail?.name} (${evt.detail?.cause})`}
@@ -228,6 +230,7 @@ export default function WorldCanvas() {
                         {evt.event_type === 'arrest' && `🔒 ${evt.detail?.arrested} verhaftet von ${evt.detail?.by}`}
                         {evt.event_type === 'crime' && `💀 ${evt.detail?.thief} bestiehlt ${evt.detail?.victim}`}
                         {evt.event_type === 'communication' && `💬 ${evt.detail?.from} → ${evt.detail?.to}`}
+                        {evt.event_type === 'build' && `🏗 ${evt.detail?.builder} baut ${evt.detail?.type === 'F' ? 'Farm' : evt.detail?.type === 's' ? 'Unterschlupf' : evt.detail?.type === 'r' ? 'Straße' : 'Gebäude'}`}
                       </span>
                     </div>
                   ))
@@ -249,6 +252,7 @@ export default function WorldCanvas() {
                 const births = events.filter(e => e.event_type === 'birth').length
                 const deaths = events.filter(e => e.event_type === 'death').length
                 const crimes = events.filter(e => e.event_type === 'crime').length
+                const builds = events.filter(e => e.event_type === 'build').length
                 return (
                   <>
                     <div className="flex justify-between"><span>Avg. Energie</span><span className="text-white font-mono">{avgEnergy}</span></div>
@@ -258,6 +262,7 @@ export default function WorldCanvas() {
                     <div className="flex justify-between"><span>Geburten (sichtbar)</span><span className="text-life-400 font-mono">{births}</span></div>
                     <div className="flex justify-between"><span>Tode (sichtbar)</span><span className="text-danger-400 font-mono">{deaths}</span></div>
                     {crimes > 0 && <div className="flex justify-between"><span>Verbrechen</span><span className="text-red-500 font-mono">{crimes}</span></div>}
+                    {builds > 0 && <div className="flex justify-between"><span>Gebaut</span><span className="text-purple-300 font-mono">{builds}</span></div>}
                   </>
                 )
               })()}
@@ -275,6 +280,8 @@ export default function WorldCanvas() {
                 ['d', 'Gefahr', '#ef4444'],
                 ['b', 'Gebäude', '#a855f7'],
                 ['s', 'Unterschlupf', '#eab308'],
+                ['F', 'Farm', '#4caf50'],
+                ['r', 'Straße', '#78716c'],
               ].map(([, label, color]) => (
                 <div key={label} className="flex items-center gap-1">
                   <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: color }} />

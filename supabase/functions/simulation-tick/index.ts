@@ -38,6 +38,18 @@ const CHILD_NAMES = [
 
 const SEASONS = ["spring", "summer", "autumn", "winter"];
 
+// Tile types: e=empty, f=food, w=water, d=danger, t=tree, b=building, s=shelter, p=prison, r=road, F=farm
+const BUILD_COSTS: Record<string, { energy: number; from: string[] }> = {
+  s: { energy: 20, from: ["e"] },       // shelter: protects from winter
+  b: { energy: 25, from: ["e"] },       // building: general structure
+  r: { energy: 10, from: ["e"] },       // road: faster movement
+  F: { energy: 30, from: ["e", "f"] },  // farm: spawns food nearby
+};
+
+const FARM_SPAWN_RADIUS = 2;
+const FARM_SPAWN_CHANCE = 0.15;
+const MAX_POPULATION = 60;
+
 function getDayPhase(tick: number): string {
   const phase = tick % DAY_LENGTH;
   if (phase < WORK_END) return "work";
@@ -50,12 +62,9 @@ function getSeason(tick: number): string {
   return SEASONS[idx];
 }
 
-function energyCost(season: string): number {
-  switch (season) {
-    case "winter": return 0.4;
-    case "autumn": return 0.25;
-    default: return 0.2;
-  }
+function energyCost(season: string, onShelter: boolean): number {
+  const base = season === "winter" ? 0.4 : season === "autumn" ? 0.25 : 0.2;
+  return onShelter && season === "winter" ? base * 0.5 : base;
 }
 
 function foodSpawnRate(season: string): number {
@@ -158,7 +167,10 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      agent.energy -= energyCost(season);
+      const currentTileType = tiles[tileIdx(agent.x, agent.y, gridSize)];
+      const onShelter = currentTileType === "s";
+      const populationPressure = agents.filter(a => a.alive).length > MAX_POPULATION ? 0.3 : 0;
+      agent.energy -= energyCost(season, onShelter) + populationPressure;
 
       if (agent.energy <= 0) {
         agent.alive = false;
@@ -177,6 +189,37 @@ Deno.serve(async (req) => {
       if (suggestion && typeof suggestion === "object" && "action" in suggestion) {
         action = String(suggestion.action);
         detail = suggestion as Record<string, unknown>;
+
+        // Handle LLM build suggestions
+        if (action === "build" || action === "farm") {
+          const buildType = action === "farm" ? "F" : (String(detail.type || "b"));
+          const validType = BUILD_COSTS[buildType];
+          const currTile = tiles[tileIdx(agent.x, agent.y, gridSize)];
+          if (validType && validType.from.includes(currTile) && agent.energy > validType.energy + 10) {
+            agent.energy -= validType.energy;
+            tiles[tileIdx(agent.x, agent.y, gridSize)] = buildType;
+            agent.reputation = Math.min(1, agent.reputation + 0.02);
+            detail = { built: buildType, at: [agent.x, agent.y] };
+            newEvents.push({ tick, event_type: "build", detail: { builder: agent.name, type: buildType, at: [agent.x, agent.y] } });
+          } else {
+            action = "idle";
+            detail = { reason: "cannot_build_here" };
+          }
+        }
+        // Handle LLM move suggestions with road bonus
+        if (action === "move" && detail.direction) {
+          const dir = String(detail.direction);
+          let dx = 0, dy = 0;
+          if (dir === "north") dy = -1;
+          else if (dir === "south") dy = 1;
+          else if (dir === "east") dx = 1;
+          else if (dir === "west") dx = -1;
+          const onRoad = currentTileType === "r";
+          const steps = onRoad ? 2 : 1;
+          agent.x = Math.max(0, Math.min(gridSize - 1, agent.x + dx * steps));
+          agent.y = Math.max(0, Math.min(gridSize - 1, agent.y + dy * steps));
+          detail = { to: [agent.x, agent.y], road_bonus: onRoad };
+        }
       } else {
         const currentTile = tiles[tileIdx(agent.x, agent.y, gridSize)];
         const nearTiles = neighbors(agent.x, agent.y, gridSize);
@@ -192,7 +235,33 @@ Deno.serve(async (req) => {
           detail = { gained: 5 };
         } else {
           const foodTiles = nearTiles.filter(([nx, ny]) => tiles[tileIdx(nx, ny, gridSize)] === "f");
-          if (foodTiles.length > 0 && agent.energy < 60) {
+
+          // Build action: during work phase, agents with enough energy can build
+          if (dayPhase === "work" && agent.energy > 50 && currentTileType === "e" && agent.personality.cooperation > 0.5) {
+            // Choose what to build based on personality and surroundings
+            const nearFoodCount = nearTiles.filter(([nx, ny]) => tiles[tileIdx(nx, ny, gridSize)] === "f").length;
+            const nearShelterCount = nearTiles.filter(([nx, ny]) => tiles[tileIdx(nx, ny, gridSize)] === "s").length;
+            const nearFarmCount = nearTiles.filter(([nx, ny]) => tiles[tileIdx(nx, ny, gridSize)] === "F").length;
+
+            let buildType = "b";
+            if (season === "autumn" && nearShelterCount === 0) {
+              buildType = "s"; // build shelter before winter
+            } else if (nearFoodCount < 2 && nearFarmCount === 0 && agent.personality.priority > 0.5) {
+              buildType = "F"; // build farm if scarce food
+            } else if (agent.personality.curiosity > 0.6) {
+              buildType = "r"; // explorative agents build roads
+            }
+
+            const cost = BUILD_COSTS[buildType]?.energy ?? 20;
+            if (agent.energy > cost + 20) {
+              agent.energy -= cost;
+              tiles[tileIdx(agent.x, agent.y, gridSize)] = buildType;
+              action = "build";
+              detail = { built: buildType, at: [agent.x, agent.y] };
+              agent.reputation = Math.min(1, agent.reputation + 0.02);
+              newEvents.push({ tick, event_type: "build", detail: { builder: agent.name, type: buildType, at: [agent.x, agent.y] } });
+            }
+          } else if (foodTiles.length > 0 && agent.energy < 60) {
             const [fx, fy] = foodTiles[Math.floor(Math.random() * foodTiles.length)];
             agent.x = fx;
             agent.y = fy;
@@ -333,8 +402,9 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Reproduction
-    if (tick % 20 === 0) {
+    // Reproduction (only if below population cap)
+    const aliveCount = agents.filter((a) => a.alive).length + babyAgents.length;
+    if (tick % 20 === 0 && aliveCount < MAX_POPULATION) {
       const fertile = agents.filter((a) => a.alive && a.energy > 65 && !a.imprisoned_until);
       const paired = new Set<string>();
       for (const a of fertile) {
@@ -394,6 +464,25 @@ Deno.serve(async (req) => {
       for (let i = 0; i < tiles.length; i++) {
         if (tiles[i] === "e" && Math.random() < rate) {
           tiles[i] = "f";
+        }
+      }
+      // Farm bonus: farms spawn extra food nearby
+      for (let y = 0; y < gridSize; y++) {
+        for (let x = 0; x < gridSize; x++) {
+          if (tiles[tileIdx(x, y, gridSize)] === "F") {
+            for (let dy = -FARM_SPAWN_RADIUS; dy <= FARM_SPAWN_RADIUS; dy++) {
+              for (let dx = -FARM_SPAWN_RADIUS; dx <= FARM_SPAWN_RADIUS; dx++) {
+                const nx = x + dx;
+                const ny = y + dy;
+                if (nx >= 0 && ny >= 0 && nx < gridSize && ny < gridSize) {
+                  const idx = tileIdx(nx, ny, gridSize);
+                  if (tiles[idx] === "e" && Math.random() < FARM_SPAWN_CHANCE) {
+                    tiles[idx] = "f";
+                  }
+                }
+              }
+            }
+          }
         }
       }
     }
