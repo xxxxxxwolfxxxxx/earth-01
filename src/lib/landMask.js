@@ -50,3 +50,18 @@ export function landBaseColor(y) {
 
 export const OCEAN_COLOR = [20, 50, 100]
 export const DEEP_OCEAN_COLOR = [10, 30, 70]
+
+// Hex neighbors (odd-r offset, pointy-top)
+const EVEN_OFFSETS = [[-1, -1], [0, -1], [-1, 0], [1, 0], [-1, 1], [0, 1]]
+const ODD_OFFSETS  = [[0, -1], [1, -1], [-1, 0], [1, 0], [0, 1], [1, 1]]
+
+export function hexNeighbors(col, row, gridSize = 30) {
+  const offsets = row % 2 === 0 ? EVEN_OFFSETS : ODD_OFFSETS
+  return offsets
+    .map(([dc, dr]) => [col + dc, row + dr])
+    .filter(([c, r]) => c >= 0 && r >= 0 && c < gridSize && r < gridSize)
+}
+
+export function landHexNeighbors(col, row, gridSize = 30) {
+  return hexNeighbors(col, row, gridSize).filter(([c, r]) => isLand(c, r))
+}
