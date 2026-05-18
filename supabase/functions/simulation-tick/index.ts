@@ -163,6 +163,13 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   );
 
+  // Handle reset parameter
+  const url = new URL(req.url);
+  if (url.searchParams.get("reset") === "true") {
+    await supabase.from("agents").update({ alive: false, energy: 0, cause_of_death: "world_reset" }).eq("alive", true);
+    return new Response(JSON.stringify({ ok: true, action: "reset" }), { headers: { "Content-Type": "application/json" } });
+  }
+
   for (let tickNum = 0; tickNum < TICKS_PER_CALL; tickNum++) {
     const { data: ws } = await supabase.from("world_state").select("*").single();
     if (!ws) break;
@@ -190,7 +197,52 @@ Deno.serve(async (req) => {
       .select("*")
       .eq("alive", true);
 
-    const agents: Agent[] = agentsData ?? [];
+    let agents: Agent[] = agentsData ?? [];
+
+    // Auto-seed: if no living agents, create starter populations on each continent
+    if (agents.length === 0) {
+      const SEED_CONTINENTS: { name: string; cells: [number, number][]; names: string[]; personality: Record<string, number> }[] = [
+        { name: "Nordamerika", cells: [[3,5],[4,5],[5,5],[4,6],[5,6]], names: ["Eagle","River","Storm","Cedar","Hawk"], personality: {priority:0.6,social_mode:0.5,risk_tolerance:0.7,curiosity:0.8,cooperation:0.5} },
+        { name: "Südamerika", cells: [[8,14],[9,14],[8,15],[9,15],[8,16]], names: ["Sol","Luna","Rio","Flora","Tierra"], personality: {priority:0.5,social_mode:0.7,risk_tolerance:0.5,curiosity:0.6,cooperation:0.7} },
+        { name: "Europa", cells: [[14,4],[15,4],[14,5],[15,5],[16,5]], names: ["Atlas","Lyra","Orion","Nova","Vega"], personality: {priority:0.7,social_mode:0.6,risk_tolerance:0.4,curiosity:0.7,cooperation:0.6} },
+        { name: "Afrika", cells: [[14,10],[15,10],[14,11],[15,11],[16,12]], names: ["Zola","Amara","Kofi","Nia","Jabari"], personality: {priority:0.5,social_mode:0.8,risk_tolerance:0.5,curiosity:0.5,cooperation:0.8} },
+        { name: "Asien", cells: [[21,6],[22,6],[23,6],[21,7],[22,7]], names: ["Kai","Yuki","Lin","Haru","Ming"], personality: {priority:0.8,social_mode:0.5,risk_tolerance:0.3,curiosity:0.6,cooperation:0.7} },
+        { name: "Australien", cells: [[24,17],[25,17],[26,17],[24,18],[25,18]], names: ["Reef","Dune","Opal","Wren","Blaze"], personality: {priority:0.4,social_mode:0.6,risk_tolerance:0.8,curiosity:0.9,cooperation:0.5} },
+      ];
+
+      // Get any owner_id from profiles
+      const { data: profiles } = await supabase.from("profiles").select("id").limit(1);
+      const ownerId = profiles?.[0]?.id ?? "00000000-0000-0000-0000-000000000000";
+
+      const seedAgents: Partial<Agent>[] = [];
+      for (const cont of SEED_CONTINENTS) {
+        for (let i = 0; i < cont.cells.length; i++) {
+          const [x, y] = cont.cells[i];
+          if (!isLand(x, y)) continue;
+          const p: Record<string, number> = {};
+          for (const [k, v] of Object.entries(cont.personality)) {
+            p[k] = Math.max(0, Math.min(1, v + (Math.random() - 0.5) * 0.2));
+          }
+          seedAgents.push({
+            owner_id: ownerId,
+            name: cont.names[i],
+            x, y,
+            energy: 80,
+            max_age: 2000 + Math.floor(Math.random() * 800),
+            personality: p as any,
+            generation: 0,
+          });
+        }
+      }
+
+      if (seedAgents.length > 0) {
+        await supabase.from("agents").insert(seedAgents);
+        // Reload agents
+        const { data: reloaded } = await supabase.from("agents").select("*").eq("alive", true);
+        agents = reloaded ?? [];
+      }
+    }
+
     const deaths: string[] = [];
     const newActions: { agent_id: string; tick: number; action_type: string; detail: Record<string, unknown> }[] = [];
     const newEvents: { tick: number; event_type: string; detail: Record<string, unknown> }[] = [];
