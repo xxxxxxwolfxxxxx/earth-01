@@ -1,10 +1,37 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Navigate, Link } from 'react-router-dom'
-import { Users, Heart, Skull, Clock, MapPin, Brain, Zap, Plus } from 'lucide-react'
+import { Users, Heart, Skull, Clock, MapPin, Brain, Zap, Plus, Sparkles, Loader2 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
-import { fetchMyAgents } from '../lib/worldService'
+import { useWorld } from '../contexts/WorldContext'
+import { fetchMyAgents, submitAgentSuggestion } from '../lib/worldService'
+import { getAgentDecision } from '../lib/agentBrain'
+import { loadLLMSettings } from '../lib/llmAdapters'
+import LLMConfig from '../components/LLMConfig'
 
-function AgentCard({ agent }) {
+function AgentCard({ agent, worldState, allAgents, tiles, onSuggestionSent }) {
+  const [thinking, setThinking] = useState(false)
+  const [lastAction, setLastAction] = useState(null)
+  const hasLLM = !!loadLLMSettings()
+
+  const requestDecision = useCallback(async () => {
+    if (!worldState || thinking) return
+    setThinking(true)
+    setLastAction(null)
+    try {
+      const decision = await getAgentDecision(agent, worldState, allAgents, tiles)
+      if (decision) {
+        await submitAgentSuggestion(agent.id, decision)
+        setLastAction(decision.action)
+        onSuggestionSent?.()
+      } else {
+        setLastAction('(keine Antwort)')
+      }
+    } catch (err) {
+      setLastAction(`Fehler: ${err.message}`)
+    }
+    setThinking(false)
+  }, [agent, worldState, allAgents, tiles, thinking, onSuggestionSent])
+
   const phaseLabels = { work: 'Arbeitet', free: 'Freizeit', sleep: 'Schläft' }
   const phaseColors = { work: 'text-energy-400', free: 'text-life-400', sleep: 'text-blue-400' }
 
@@ -54,27 +81,47 @@ function AgentCard({ agent }) {
           Im Gefängnis bis Tick {agent.imprisoned_until}
         </div>
       )}
+
+      {agent.alive && hasLLM && (
+        <div className="mt-3 pt-3 border-t border-white/5">
+          <button
+            onClick={requestDecision}
+            disabled={thinking || agent.day_phase === 'sleep'}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-nebula-600/20 hover:bg-nebula-600/30 text-nebula-300 text-xs font-medium disabled:opacity-40 transition-colors"
+          >
+            {thinking ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+            {thinking ? 'Denkt nach...' : 'KI-Entscheidung'}
+          </button>
+          {lastAction && (
+            <span className="text-xs text-gray-500 ml-2">{lastAction}</span>
+          )}
+        </div>
+      )}
     </div>
   )
 }
 
 export default function Dashboard() {
-  const { user } = useAuth()
-  const [agents, setAgents] = useState([])
+  const { user, loading: authLoading } = useAuth()
+  const { worldState, agents: worldAgents, tiles } = useWorld()
+  const [myAgents, setMyAgents] = useState([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
+  const loadAgents = useCallback(() => {
     if (!user) return
     fetchMyAgents().then((data) => {
-      setAgents(data)
+      setMyAgents(data)
       setLoading(false)
     })
   }, [user])
 
+  useEffect(() => { loadAgents() }, [loadAgents])
+
+  if (authLoading) return <div className="text-center py-32 text-gray-500">Lade...</div>
   if (!user) return <Navigate to="/login" replace />
 
-  const alive = agents.filter(a => a.alive)
-  const dead = agents.filter(a => !a.alive)
+  const alive = myAgents.filter(a => a.alive)
+  const dead = myAgents.filter(a => !a.alive)
 
   return (
     <div className="max-w-4xl mx-auto px-4 pt-24 pb-16">
@@ -95,7 +142,7 @@ export default function Dashboard() {
 
       {loading ? (
         <div className="text-center py-16 text-gray-500">Lade Agenten...</div>
-      ) : agents.length === 0 ? (
+      ) : myAgents.length === 0 ? (
         <div className="text-center py-16">
           <Brain className="w-16 h-16 text-gray-600 mx-auto mb-4" />
           <h3 className="font-display text-white text-xl font-bold mb-2">Noch keine Agenten</h3>
@@ -115,7 +162,16 @@ export default function Dashboard() {
                 <Users className="w-5 h-5 text-life-400" /> Lebend ({alive.length})
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {alive.map(agent => <AgentCard key={agent.id} agent={agent} />)}
+                {alive.map(agent => (
+                  <AgentCard
+                    key={agent.id}
+                    agent={agent}
+                    worldState={worldState}
+                    allAgents={worldAgents}
+                    tiles={tiles}
+                    onSuggestionSent={loadAgents}
+                  />
+                ))}
               </div>
             </div>
           )}
@@ -126,12 +182,24 @@ export default function Dashboard() {
                 <Skull className="w-5 h-5 text-gray-500" /> Verstorben ({dead.length})
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {dead.map(agent => <AgentCard key={agent.id} agent={agent} />)}
+                {dead.map(agent => (
+                  <AgentCard
+                    key={agent.id}
+                    agent={agent}
+                    worldState={worldState}
+                    allAgents={worldAgents}
+                    tiles={tiles}
+                  />
+                ))}
               </div>
             </div>
           )}
         </div>
       )}
+
+      <div className="mt-8">
+        <LLMConfig />
+      </div>
     </div>
   )
 }
