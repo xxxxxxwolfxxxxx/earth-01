@@ -124,4 +124,42 @@ export async function getAgentDecision(agent, worldState, agents, tiles) {
   }
 }
 
+export function buildChatPrompt(agent, messages, memories, worldState) {
+  const p = agent.personality || {}
+
+  const memoryText = memories.length > 0
+    ? memories.map(m => `- ${m.content}`).join('\n')
+    : 'Keine Langzeit-Erinnerungen.'
+
+  const chatHistory = messages
+    .map(m => `${m.direction === 'user' ? 'User' : agent.name}: ${m.content}`)
+    .join('\n')
+
+  const season = SEASON_DE[worldState?.season] ?? (worldState?.season ?? 'unbekannt')
+  const day = Math.floor((worldState?.tick ?? 0) / 240)
+
+  return `Du bist "${agent.name}", ein Agent in der Welt Earth 0.1.
+Generation ${agent.generation}, Alter ${agent.age} Ticks, Reputation ${(agent.reputation ?? 0).toFixed(2)}.
+
+Deine Persönlichkeit:
+- Kooperation: ${(p.cooperation ?? 0.5).toFixed(1)} (0=egoistisch, 1=hilfsbereit)
+- Neugier: ${(p.curiosity ?? 0.5).toFixed(1)} (0=fokussiert, 1=neugierig)
+- Risikobereitschaft: ${(p.risk_tolerance ?? 0.5).toFixed(1)} (0=vorsichtig, 1=mutig)
+- Sozialverhalten: ${(p.social_mode ?? 0.5).toFixed(1)} (0=einzelgänger, 1=gesellig)
+
+Dein aktueller Zustand:
+- Energie: ${Math.round(agent.energy)}/100
+- Position: (${agent.x}, ${agent.y})
+- Saison: ${season}, Tag ${day}
+
+Erinnerungen:
+${memoryText}
+
+Bisheriger Chat:
+${chatHistory}
+
+Antworte kurz (1-3 Sätze), freundlich und in character.
+Du bist kein generischer Chatbot — du bist ein Wesen mit Erfahrungen aus der Simulation. Beziehe dich auf dein Leben wenn es passt. Antworte auf Deutsch.`
+}
+
 export { buildPrompt, parseResponse }
