@@ -1,10 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useWorld } from '../contexts/WorldContext'
-import { isLand, landBaseColor, OCEAN_COLOR, DEEP_OCEAN_COLOR } from '../lib/landMask'
-
-const CELL = 20
-const GAP = 1
-const STEP = CELL + GAP
+import { isLand, landBaseColor, OCEAN_COLOR, hexNeighbors } from '../lib/landMask'
+import { hexToPixel, pixelToHex, hexCorners, canvasSize, HEX_SIZE } from '../lib/hexUtils'
 
 const TILE_COLORS = {
   f: [34, 197, 94],
@@ -24,6 +21,30 @@ const PHASE_LABELS = { work: 'Arbeit', free: 'Freizeit', sleep: 'Schlaf' }
 const SEASON_COLORS = { spring: '#22c55e', summer: '#fbbf24', autumn: '#f97316', winter: '#60a5fa' }
 const PHASE_COLORS = { work: '#f97316', free: '#34d399', sleep: '#60a5fa' }
 
+// Seeded RNG for deterministic terrain noise
+function seededRng(seed) {
+  let s = seed
+  return () => {
+    s = (s * 16807 + 0) % 2147483647
+    return (s - 1) / 2147483646
+  }
+}
+
+function drawHex(ctx, cx, cy, size, fill, stroke, lineWidth) {
+  const corners = hexCorners(cx, cy, size)
+  ctx.beginPath()
+  ctx.moveTo(corners[0][0], corners[0][1])
+  for (let i = 1; i < 6; i++) ctx.lineTo(corners[i][0], corners[i][1])
+  ctx.closePath()
+  ctx.fillStyle = fill
+  ctx.fill()
+  if (stroke) {
+    ctx.strokeStyle = stroke
+    ctx.lineWidth = lineWidth || 1
+    ctx.stroke()
+  }
+}
+
 export default function WorldCanvas() {
   const { worldState, tiles, agents, events, loading, error } = useWorld()
   const canvasRef = useRef(null)
@@ -32,76 +53,105 @@ export default function WorldCanvas() {
 
   const gridSize = worldState?.grid_size ?? 30
 
+  // Padding so hex grid isn't clipped at edges
+  const PAD_X = HEX_SIZE + 4
+  const PAD_Y = HEX_SIZE + 4
+
   const draw = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas || !tiles) return
     const ctx = canvas.getContext('2d')
-    const size = gridSize * STEP - GAP
-    canvas.width = size
-    canvas.height = size
+    const [cw, ch] = canvasSize(gridSize)
+    canvas.width = cw + PAD_X * 2
+    canvas.height = ch + PAD_Y * 2
 
-    // Draw map background
-    for (let y = 0; y < gridSize; y++) {
-      for (let x = 0; x < gridSize; x++) {
-        const idx = y * gridSize + x
+    const rng = seededRng(42)
+
+    // Draw hex tiles
+    for (let row = 0; row < gridSize; row++) {
+      for (let col = 0; col < gridSize; col++) {
+        const [px, py] = hexToPixel(col, row)
+        const cx = px + PAD_X
+        const cy = py + PAD_Y
+        const idx = row * gridSize + col
         const tile = tiles[idx] || 'e'
-        const land = isLand(x, y)
-        let color
+        const land = isLand(col, row)
 
         if (!land) {
-          // Ocean with subtle depth variation
-          const depth = Math.sin(x * 0.3) * 5 + Math.cos(y * 0.2) * 3
-          color = [
-            OCEAN_COLOR[0] + depth,
-            OCEAN_COLOR[1] + depth + 5,
-            OCEAN_COLOR[2] + depth + 10
-          ]
-        } else if (tile === 'e') {
-          color = landBaseColor(y)
-        } else if (TILE_COLORS[tile]) {
-          color = TILE_COLORS[tile]
+          // Ocean with subtle depth variation + noise
+          const depth = Math.sin(col * 0.4) * 8 + Math.cos(row * 0.3) * 5
+          const n = rng() * 12 - 6
+          const r = OCEAN_COLOR[0] + depth + n
+          const g = OCEAN_COLOR[1] + depth + n + 2
+          const b = OCEAN_COLOR[2] + depth + n + 5
+          drawHex(ctx, cx, cy, HEX_SIZE, `rgb(${r},${g},${b})`, 'rgba(30,60,110,0.25)', 0.5)
+
+          // Subtle wave line
+          ctx.strokeStyle = `rgba(60,100,160,${0.08 + rng() * 0.08})`
+          ctx.lineWidth = 0.5
+          ctx.beginPath()
+          ctx.moveTo(cx - 5, cy + rng() * 4 - 2)
+          ctx.lineTo(cx + 5, cy + rng() * 4 - 2)
+          ctx.stroke()
+        } else if (tile === 'e' || !TILE_COLORS[tile]) {
+          // Land with terrain noise
+          const lc = landBaseColor(row)
+          const n1 = rng() * 20 - 10
+          const n2 = rng() * 20 - 10
+          const n3 = rng() * 20 - 10
+          drawHex(ctx, cx, cy, HEX_SIZE,
+            `rgb(${lc[0]+n1},${lc[1]+n2},${lc[2]+n3})`,
+            'rgba(255,255,255,0.08)', 0.5)
+
+          // Terrain detail dots
+          for (let d = 0; d < 3; d++) {
+            const dx = (rng() - 0.5) * HEX_SIZE * 0.8
+            const dy = (rng() - 0.5) * HEX_SIZE * 0.8
+            if (Math.sqrt(dx*dx + dy*dy) < HEX_SIZE * 0.55) {
+              ctx.fillStyle = `rgba(${lc[0]-15},${lc[1]+10},${lc[2]-5},${0.25 + rng()*0.25})`
+              ctx.fillRect(cx + dx, cy + dy, 1.5, 1.5)
+            }
+          }
         } else {
-          color = landBaseColor(y)
-        }
-
-        ctx.fillStyle = `rgb(${color[0]}, ${color[1]}, ${color[2]})`
-        ctx.fillRect(x * STEP, y * STEP, CELL, CELL)
-
-        // Subtle border for land cells
-        if (land && tile === 'e') {
-          ctx.strokeStyle = 'rgba(0,0,0,0.08)'
-          ctx.strokeRect(x * STEP, y * STEP, CELL, CELL)
+          // Special tile type (food, building, etc.)
+          const tc = TILE_COLORS[tile]
+          drawHex(ctx, cx, cy, HEX_SIZE,
+            `rgb(${tc[0]},${tc[1]},${tc[2]})`,
+            `rgba(${tc[0]},${tc[1]},${tc[2]},0.4)`, 0.7)
         }
       }
     }
 
-    // Draw coastlines
-    ctx.strokeStyle = 'rgba(255,255,255,0.15)'
-    ctx.lineWidth = 1
-    for (let y = 0; y < gridSize; y++) {
-      for (let x = 0; x < gridSize; x++) {
-        if (!isLand(x, y)) continue
-        const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]]
-        for (const [dx, dy] of dirs) {
-          const nx = x + dx, ny = y + dy
-          if (nx < 0 || ny < 0 || nx >= gridSize || ny >= gridSize || !isLand(nx, ny)) {
-            const sx = x * STEP
-            const sy = y * STEP
-            if (dx === 1) { ctx.beginPath(); ctx.moveTo(sx + CELL, sy); ctx.lineTo(sx + CELL, sy + CELL); ctx.stroke() }
-            if (dx === -1) { ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx, sy + CELL); ctx.stroke() }
-            if (dy === 1) { ctx.beginPath(); ctx.moveTo(sx, sy + CELL); ctx.lineTo(sx + CELL, sy + CELL); ctx.stroke() }
-            if (dy === -1) { ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + CELL, sy); ctx.stroke() }
-          }
-        }
+    // Draw coastlines (land hexes adjacent to ocean get thicker white border)
+    for (let row = 0; row < gridSize; row++) {
+      for (let col = 0; col < gridSize; col++) {
+        if (!isLand(col, row)) continue
+        const nbrs = hexNeighbors(col, row, gridSize)
+        const hasOcean = nbrs.some(([c, r]) => !isLand(c, r))
+          || col === 0 || row === 0 || col === gridSize - 1 || row === gridSize - 1
+        if (!hasOcean) continue
+
+        const [px, py] = hexToPixel(col, row)
+        const cx = px + PAD_X
+        const cy = py + PAD_Y
+        const corners = hexCorners(cx, cy, HEX_SIZE)
+        ctx.beginPath()
+        ctx.moveTo(corners[0][0], corners[0][1])
+        for (let i = 1; i < 6; i++) ctx.lineTo(corners[i][0], corners[i][1])
+        ctx.closePath()
+        ctx.strokeStyle = 'rgba(255,255,255,0.18)'
+        ctx.lineWidth = 1.5
+        ctx.stroke()
       }
     }
 
     // Draw agents
     for (const agent of agents) {
       if (!agent.alive) continue
-      const ax = agent.x * STEP + CELL / 2
-      const ay = agent.y * STEP + CELL / 2
-      const radius = CELL * 0.4
+      const [px, py] = hexToPixel(agent.x, agent.y)
+      const ax = px + PAD_X
+      const ay = py + PAD_Y
+      const radius = HEX_SIZE * 0.38
 
       const energyRatio = agent.energy / 100
       const r = Math.round(251 * (1 - agent.reputation * 0.3))
@@ -110,8 +160,8 @@ export default function WorldCanvas() {
 
       // Agent glow
       ctx.beginPath()
-      ctx.arc(ax, ay, radius + 2, 0, Math.PI * 2)
-      ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.3)`
+      ctx.arc(ax, ay, radius + 3, 0, Math.PI * 2)
+      ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.25)`
       ctx.fill()
 
       // Agent body
@@ -120,35 +170,40 @@ export default function WorldCanvas() {
       ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
       ctx.fill()
 
-      // White border for visibility
-      ctx.strokeStyle = 'rgba(255,255,255,0.6)'
-      ctx.lineWidth = 1
+      // White border
+      ctx.strokeStyle = 'rgba(255,255,255,0.7)'
+      ctx.lineWidth = 1.2
       ctx.stroke()
 
       if (agent.day_phase === 'sleep') {
         ctx.globalAlpha = 0.5
         ctx.fillStyle = '#60a5fa'
-        ctx.font = `${CELL * 0.5}px sans-serif`
+        ctx.font = `${HEX_SIZE * 0.5}px sans-serif`
         ctx.textAlign = 'center'
-        ctx.fillText('z', ax, ay - radius - 2)
+        ctx.fillText('z', ax, ay - radius - 3)
         ctx.globalAlpha = 1
       }
 
       if (agent.imprisoned_until) {
+        const corners = hexCorners(ax, ay, HEX_SIZE * 0.7)
+        ctx.beginPath()
+        ctx.moveTo(corners[0][0], corners[0][1])
+        for (let i = 1; i < 6; i++) ctx.lineTo(corners[i][0], corners[i][1])
+        ctx.closePath()
         ctx.strokeStyle = '#ef4444'
         ctx.lineWidth = 2
-        ctx.strokeRect(agent.x * STEP - 1, agent.y * STEP - 1, CELL + 2, CELL + 2)
+        ctx.stroke()
       }
 
       if (agent.energy < 20) {
+        ctx.beginPath()
+        ctx.arc(ax, ay, radius + 5, 0, Math.PI * 2)
         ctx.strokeStyle = '#ef444480'
         ctx.lineWidth = 1
-        ctx.beginPath()
-        ctx.arc(ax, ay, radius + 4, 0, Math.PI * 2)
         ctx.stroke()
       }
     }
-  }, [tiles, agents, gridSize])
+  }, [tiles, agents, gridSize, PAD_X, PAD_Y])
 
   useEffect(() => {
     draw()
@@ -160,14 +215,13 @@ export default function WorldCanvas() {
     const rect = canvas.getBoundingClientRect()
     const scaleX = canvas.width / rect.width
     const scaleY = canvas.height / rect.height
-    const mx = (e.clientX - rect.left) * scaleX
-    const my = (e.clientY - rect.top) * scaleY
-    const gx = Math.floor(mx / STEP)
-    const gy = Math.floor(my / STEP)
+    const mx = (e.clientX - rect.left) * scaleX - PAD_X
+    const my = (e.clientY - rect.top) * scaleY - PAD_Y
+    const [col, row] = pixelToHex(mx, my)
 
-    const clicked = agents.find(a => a.alive && a.x === gx && a.y === gy)
+    const clicked = agents.find(a => a.alive && a.x === col && a.y === row)
     setHoveredAgent(clicked || null)
-  }, [agents])
+  }, [agents, PAD_X, PAD_Y])
 
   if (loading) {
     return (
@@ -218,7 +272,7 @@ export default function WorldCanvas() {
             ref={canvasRef}
             onClick={handleCanvasClick}
             className="cursor-crosshair"
-            style={{ width: '100%', height: 'auto', imageRendering: 'pixelated' }}
+            style={{ width: '100%', height: 'auto', imageRendering: 'auto' }}
           />
         </div>
 
