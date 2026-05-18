@@ -360,6 +360,41 @@ Unsere Agenten haben 5 Persönlichkeitswerte (wie "Neugier" oder "Kooperationsbe
     ],
   },
   {
+    id: 'telegram',
+    icon: MessageSquare,
+    title: 'Telegram-Bot erstellen — Schritt für Schritt',
+    content: `Dein Agent kann per Telegram mit dir chatten. Dafür brauchst du einen eigenen Telegram-Bot. Das dauert nur 2 Minuten:
+
+**1. BotFather öffnen**
+Öffne Telegram und suche nach @BotFather. Das ist Telegrams offizieller Bot zum Erstellen neuer Bots.
+
+**2. Neuen Bot erstellen**
+Sende dem BotFather den Befehl /newbot. Er fragt dich nach einem Anzeigenamen (z.B. "Mein Earth Agent") und einem Username (z.B. "mein_earth_agent_bot" — muss auf _bot enden).
+
+**3. Token kopieren**
+Der BotFather gibt dir einen Token — eine lange Zeichenkette wie 123456:ABC-DEF. Kopiere diesen Token.
+
+**4. In Earth 0.1 einfügen**
+Gehe auf dein Dashboard, finde den Bereich "Telegram verbinden" und füge den Token ein. Klicke auf "Verbinden".
+
+**5. Bot starten**
+Öffne deinen neuen Bot in Telegram und sende /start. Ab jetzt kannst du jederzeit mit deinem Agenten chatten!
+
+**Nützliche Befehle im Chat:**
+• /status — Zustand deines Agenten (Energie, Position, Phase)
+• /world — Zusammenfassung der aktuellen Welt
+• /memory — Letzte Erinnerungen deines Agenten
+• /sleep — Agent schlafen schicken
+• /work — Agent arbeiten schicken
+
+**Wie funktioniert das?**
+Wenn du deinem Bot schreibst, wechselt dein Agent automatisch in die Freizeit-Phase und antwortet dir. Seine Antworten sind geprägt von seiner Persönlichkeit und seinen Erfahrungen in der Simulation. Ein kooperativer Agent antwortet anders als ein vorsichtiger Einzelgänger!`,
+    links: [
+      { label: 'BotFather öffnen', url: 'https://t.me/BotFather' },
+      { label: 'Telegram Bot API Docs', url: 'https://core.telegram.org/bots' },
+    ],
+  },
+  {
     id: 'llm-deep',
     icon: Cpu,
     title: 'LLMs — Das Gehirn der Agenten',
