@@ -8,6 +8,75 @@ const FREE_END = 160;
 const SEASON_LENGTH = 80;
 const FOOD_SPAWN_INTERVAL = 5;
 const DISASTER_INTERVAL = 40;
+const MAX_POPULATION = 60;
+const FARM_SPAWN_RADIUS = 2;
+const FARM_SPAWN_CHANCE = 0.15;
+
+// 30x30 land mask: L=land, o=ocean. Maps to lat 80°N..80°S, lng 160°W..160°E
+// Continents: NA=North America, SA=South America, EU=Europe, AF=Africa, AS=Asia, AU=Australia
+const LAND_MASK = [
+  "oooooooooooooooooooooooooooooo", // 0  Arctic
+  "oLLoooooooooooooooLLLLLLLooooo", // 1  Alaska, Siberia
+  "oLLLooooooooooLLoLLLLLLLLooooo", // 2  W.Canada, Iceland, Russia
+  "oLLLLoooooooooLLLLLLLLLLLLoooo", // 3  Canada, Scandinavia, Russia
+  "ooLLLLLooooooLLLLLLLLLLLLLoooo", // 4  S.Canada, UK/Europe, Russia
+  "ooLLLLLooooooLLLLLLLLLLLLLoooo", // 5  US/Canada, W.Europe, Russia
+  "ooLLLLLooooooLLLLLLLLLLLLooooo", // 6  US, Med, Central Asia, China
+  "oooLLLLooooooLLLLLLLLLLLLooooo", // 7  US, N.Africa, Middle East, China
+  "oooLLLLooooooLLLLLLLLLLLLooooo", // 8  S.US, Sahara, India, China
+  "ooooLLLooooooLLLLLoLLLLLLooooo", // 9  Mexico, W.Africa, India, SE Asia
+  "oooooLLooooooLLLLLoLLLLLoooooo", // 10 C.America, Africa, India
+  "oooooLLoooooLLLLLLoLLLLLooooo",  // 11 FIXME
+  "ooooooLLooooLLLLLLoooLLLoooooo", // 12 N.S.America, W.Africa, SE Asia
+  "ooooooLLLooLLLLLLLoooooLoooooo", // 13 S.America, C.Africa, Indonesia
+  "oooooooLLLoLLLLLLooooooooooLoo", // 14 Brazil, Africa, PNG
+  "oooooooLLLoooLLLLooooooooLLLoo", // 15 Brazil, E.Africa, N.Australia
+  "ooooooooLLooooLLLLoooooLLLLLoo", // 16 Brazil, E.Africa, Australia
+  "ooooooooLLooooLLLooooooLLLLLoo", // 17 S.Brazil, SE.Africa, Australia
+  "oooooooooLLoooooLLooooLLLLLLoo", // 18 Argentina, S.Africa, Australia
+  "oooooooooLLoooooLLoooooLLLLLoo", // 19 Argentina, S.Africa, Australia
+  "ooooooooLLooooooLooooooooLLLoo", // 20 Argentina, S.Africa tip, SE Aus
+  "ooooooooLLoooooooooooooooooooo", // 21 Patagonia
+  "oooooooooLoooooooooooooooooooo", // 22 Patagonia tip
+  "oooooooooooooooooooooooooooooo", // 23
+  "oooooooooooooooooooooooooooooo", // 24
+  "oooooooooooooooooooooooooooooo", // 25
+  "oooooooooooooooooooooooooooooo", // 26
+  "oooooooooooooooooooooooooooooo", // 27
+  "oooooooooooooooooooooooooooooo", // 28
+  "oooooooooooooooooooooooooooooo", // 29
+];
+
+// Fix row 11 to 30 chars
+const LAND_MASK_FIXED = LAND_MASK.map(row => row.length < 30 ? row + "o".repeat(30 - row.length) : row.slice(0, 30));
+
+function isLand(x: number, y: number): boolean {
+  if (y < 0 || y >= 30 || x < 0 || x >= 30) return false;
+  return LAND_MASK_FIXED[y][x] === "L";
+}
+
+// Continent regions for initial population seeding
+const CONTINENTS: Record<string, { name: string; cells: [number, number][] }> = {};
+function initContinents() {
+  const regions: { name: string; xMin: number; xMax: number; yMin: number; yMax: number }[] = [
+    { name: "Nordamerika", xMin: 1, xMax: 7, yMin: 1, yMax: 10 },
+    { name: "Südamerika", xMin: 6, xMax: 10, yMin: 12, yMax: 22 },
+    { name: "Europa", xMin: 13, xMax: 17, yMin: 2, yMax: 7 },
+    { name: "Afrika", xMin: 12, xMax: 18, yMin: 7, yMax: 20 },
+    { name: "Asien", xMin: 17, xMax: 27, yMin: 1, yMax: 12 },
+    { name: "Australien", xMin: 22, xMax: 28, yMin: 15, yMax: 20 },
+  ];
+  for (const r of regions) {
+    const cells: [number, number][] = [];
+    for (let y = r.yMin; y <= r.yMax; y++) {
+      for (let x = r.xMin; x <= r.xMax; x++) {
+        if (isLand(x, y)) cells.push([x, y]);
+      }
+    }
+    if (cells.length > 0) CONTINENTS[r.name] = { name: r.name, cells };
+  }
+}
+initContinents();
 
 type Agent = {
   id: string;
@@ -38,17 +107,13 @@ const CHILD_NAMES = [
 
 const SEASONS = ["spring", "summer", "autumn", "winter"];
 
-// Tile types: e=empty, f=food, w=water, d=danger, t=tree, b=building, s=shelter, p=prison, r=road, F=farm
 const BUILD_COSTS: Record<string, { energy: number; from: string[] }> = {
-  s: { energy: 20, from: ["e"] },       // shelter: protects from winter
-  b: { energy: 25, from: ["e"] },       // building: general structure
-  r: { energy: 10, from: ["e"] },       // road: faster movement
-  F: { energy: 30, from: ["e", "f"] },  // farm: spawns food nearby
+  s: { energy: 20, from: ["e"] },
+  b: { energy: 25, from: ["e"] },
+  r: { energy: 10, from: ["e"] },
+  F: { energy: 30, from: ["e", "f"] },
+  P: { energy: 40, from: ["e"] }, // port: allows ocean crossing
 };
-
-const FARM_SPAWN_RADIUS = 2;
-const FARM_SPAWN_CHANCE = 0.15;
-const MAX_POPULATION = 60;
 
 function getDayPhase(tick: number): string {
   const phase = tick % DAY_LENGTH;
@@ -84,17 +149,15 @@ function neighbors(x: number, y: number, gridSize: number): [number, number][] {
     .filter(([nx, ny]) => nx >= 0 && ny >= 0 && nx < gridSize && ny < gridSize);
 }
 
+function landNeighbors(x: number, y: number, gridSize: number): [number, number][] {
+  return neighbors(x, y, gridSize).filter(([nx, ny]) => isLand(nx, ny));
+}
+
 function tileIdx(x: number, y: number, gridSize: number): number {
   return y * gridSize + x;
 }
 
 Deno.serve(async (req) => {
-  const authHeader = req.headers.get("Authorization");
-  const expectedKey = Deno.env.get("SIMULATION_SECRET") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (authHeader !== `Bearer ${expectedKey}`) {
-    // Also allow calls from pg_cron via service_role
-  }
-
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
@@ -112,6 +175,16 @@ Deno.serve(async (req) => {
     const { data: tilesRow } = await supabase.from("world_tiles").select("tiles").single();
     let tiles = (tilesRow?.tiles ?? "").split("");
 
+    // Enforce land mask: set ocean cells to 'o', land cells keep their type
+    for (let y = 0; y < gridSize; y++) {
+      for (let x = 0; x < gridSize; x++) {
+        const idx = tileIdx(x, y, gridSize);
+        if (!isLand(x, y)) {
+          tiles[idx] = "o";
+        }
+      }
+    }
+
     const { data: agentsData } = await supabase
       .from("agents")
       .select("*")
@@ -122,6 +195,30 @@ Deno.serve(async (req) => {
     const newActions: { agent_id: string; tick: number; action_type: string; detail: Record<string, unknown> }[] = [];
     const newEvents: { tick: number; event_type: string; detail: Record<string, unknown> }[] = [];
     const babyAgents: Partial<Agent>[] = [];
+
+    // Move agents stuck in ocean to nearest land
+    for (const agent of agents) {
+      if (!agent.alive) continue;
+      if (!isLand(agent.x, agent.y)) {
+        const landCells: [number, number][] = [];
+        for (let r = 1; r < 10; r++) {
+          for (let dy = -r; dy <= r; dy++) {
+            for (let dx = -r; dx <= r; dx++) {
+              if (Math.abs(dx) === r || Math.abs(dy) === r) {
+                const nx = agent.x + dx, ny = agent.y + dy;
+                if (isLand(nx, ny)) landCells.push([nx, ny]);
+              }
+            }
+          }
+          if (landCells.length > 0) break;
+        }
+        if (landCells.length > 0) {
+          const [nx, ny] = landCells[Math.floor(Math.random() * landCells.length)];
+          agent.x = nx;
+          agent.y = ny;
+        }
+      }
+    }
 
     const posMap = new Map<string, Agent[]>();
     for (const a of agents) {
@@ -193,7 +290,6 @@ Deno.serve(async (req) => {
         action = String(suggestion.action);
         detail = suggestion as Record<string, unknown>;
 
-        // Handle LLM build suggestions
         if (action === "build" || action === "farm") {
           const buildType = action === "farm" ? "F" : (String(detail.type || "b"));
           const validType = BUILD_COSTS[buildType];
@@ -209,7 +305,6 @@ Deno.serve(async (req) => {
             detail = { reason: "cannot_build_here" };
           }
         }
-        // Handle LLM move suggestions with road bonus
         if (action === "move" && detail.direction) {
           const dir = String(detail.direction);
           let dx = 0, dy = 0;
@@ -219,13 +314,38 @@ Deno.serve(async (req) => {
           else if (dir === "west") dx = -1;
           const onRoad = currentTileType === "r";
           const steps = onRoad ? 2 : 1;
-          agent.x = Math.max(0, Math.min(gridSize - 1, agent.x + dx * steps));
-          agent.y = Math.max(0, Math.min(gridSize - 1, agent.y + dy * steps));
-          detail = { to: [agent.x, agent.y], road_bonus: onRoad };
+          const newX = Math.max(0, Math.min(gridSize - 1, agent.x + dx * steps));
+          const newY = Math.max(0, Math.min(gridSize - 1, agent.y + dy * steps));
+          // Only move if target is land (or agent has port nearby for ocean crossing)
+          if (isLand(newX, newY)) {
+            agent.x = newX;
+            agent.y = newY;
+            detail = { to: [agent.x, agent.y], road_bonus: onRoad };
+          } else {
+            // Check for port-based ocean crossing
+            const hasPort = neighbors(agent.x, agent.y, gridSize).some(
+              ([nx, ny]) => tiles[tileIdx(nx, ny, gridSize)] === "P"
+            );
+            if (hasPort) {
+              // Find nearest land in that direction
+              for (let dist = 2; dist <= 8; dist++) {
+                const tx = Math.max(0, Math.min(gridSize - 1, agent.x + dx * dist));
+                const ty = Math.max(0, Math.min(gridSize - 1, agent.y + dy * dist));
+                if (isLand(tx, ty)) {
+                  agent.x = tx;
+                  agent.y = ty;
+                  agent.energy -= 5; // ocean crossing costs extra energy
+                  detail = { to: [agent.x, agent.y], ocean_crossing: true };
+                  newEvents.push({ tick, event_type: "voyage", detail: { agent: agent.name, from_port: true, to: [tx, ty] } });
+                  break;
+                }
+              }
+            }
+          }
         }
       } else {
         const currentTile = tiles[tileIdx(agent.x, agent.y, gridSize)];
-        const nearTiles = neighbors(agent.x, agent.y, gridSize);
+        const nearTiles = landNeighbors(agent.x, agent.y, gridSize);
 
         if (currentTile === "f") {
           action = "eat";
@@ -239,20 +359,18 @@ Deno.serve(async (req) => {
         } else {
           const foodTiles = nearTiles.filter(([nx, ny]) => tiles[tileIdx(nx, ny, gridSize)] === "f");
 
-          // Build action: during work phase, agents with enough energy can build
           if (dayPhase === "work" && agent.energy > 50 && currentTileType === "e" && agent.personality.cooperation > 0.5) {
-            // Choose what to build based on personality and surroundings
             const nearFoodCount = nearTiles.filter(([nx, ny]) => tiles[tileIdx(nx, ny, gridSize)] === "f").length;
             const nearShelterCount = nearTiles.filter(([nx, ny]) => tiles[tileIdx(nx, ny, gridSize)] === "s").length;
             const nearFarmCount = nearTiles.filter(([nx, ny]) => tiles[tileIdx(nx, ny, gridSize)] === "F").length;
 
             let buildType = "b";
             if (season === "autumn" && nearShelterCount === 0) {
-              buildType = "s"; // build shelter before winter
+              buildType = "s";
             } else if (nearFoodCount < 2 && nearFarmCount === 0 && agent.personality.priority > 0.5) {
-              buildType = "F"; // build farm if scarce food
+              buildType = "F";
             } else if (agent.personality.curiosity > 0.6) {
-              buildType = "r"; // explorative agents build roads
+              buildType = "r";
             }
 
             const cost = BUILD_COSTS[buildType]?.energy ?? 20;
@@ -302,14 +420,29 @@ Deno.serve(async (req) => {
                 }
               }
             } else {
-              const nx = agent.x + Math.floor(Math.random() * 3) - 1;
-              const ny = agent.y + Math.floor(Math.random() * 3) - 1;
-              const clampedX = Math.max(0, Math.min(gridSize - 1, nx));
-              const clampedY = Math.max(0, Math.min(gridSize - 1, ny));
-              agent.x = clampedX;
-              agent.y = clampedY;
-              action = "explore";
-              detail = { to: [clampedX, clampedY] };
+              // Wander: only to land neighbors
+              const walkable = landNeighbors(agent.x, agent.y, gridSize);
+              if (walkable.length > 0) {
+                const [nx, ny] = walkable[Math.floor(Math.random() * walkable.length)];
+                // Road bonus: if on road, try to move 2 steps
+                if (currentTileType === "r") {
+                  const further = landNeighbors(nx, ny, gridSize)
+                    .filter(([fx, fy]) => fx !== agent.x || fy !== agent.y);
+                  if (further.length > 0) {
+                    const [fx, fy] = further[Math.floor(Math.random() * further.length)];
+                    agent.x = fx;
+                    agent.y = fy;
+                  } else {
+                    agent.x = nx;
+                    agent.y = ny;
+                  }
+                } else {
+                  agent.x = nx;
+                  agent.y = ny;
+                }
+                action = "explore";
+                detail = { to: [agent.x, agent.y] };
+              }
             }
           } else {
             const waterTiles = nearTiles.filter(([nx, ny]) => tiles[tileIdx(nx, ny, gridSize)] === "w");
@@ -320,24 +453,23 @@ Deno.serve(async (req) => {
               action = "move_to_water";
               detail = { to: [wx, wy] };
             } else {
-              const emptyNear = nearTiles.filter(([nx, ny]) => {
+              const walkable = nearTiles.filter(([nx, ny]) => {
                 const t = tiles[tileIdx(nx, ny, gridSize)];
-                return t === "e" || t === "f" || t === "w";
+                return t !== "o" && t !== "d";
               });
-              if (emptyNear.length > 0) {
-                const [ex, ey] = emptyNear[Math.floor(Math.random() * emptyNear.length)];
+              if (walkable.length > 0) {
+                const [ex, ey] = walkable[Math.floor(Math.random() * walkable.length)];
                 agent.x = ex;
                 agent.y = ey;
                 action = "wander";
                 detail = { to: [ex, ey] };
-              } else {
-                action = "idle";
               }
             }
           }
         }
       }
 
+      // Energy sharing
       if (dayPhase === "free" && agent.energy > 30) {
         const nearAgents = agents.filter(
           (other) => other.id !== agent.id && other.alive && other.energy < 20 && Math.abs(other.x - agent.x) <= 1 && Math.abs(other.y - agent.y) <= 1
@@ -357,7 +489,7 @@ Deno.serve(async (req) => {
       newActions.push({ agent_id: agent.id, tick, action_type: action, detail });
     }
 
-    // Arrest mechanic: agents can arrest nearby agents with bad reputation
+    // Arrest mechanic
     if (dayPhase === "work" || dayPhase === "free") {
       for (const agent of agents) {
         if (!agent.alive || agent.imprisoned_until) continue;
@@ -372,21 +504,13 @@ Deno.serve(async (req) => {
             target.imprisoned_until = tick + 100;
             target.reputation = Math.max(-1, target.reputation - 0.1);
             agent.reputation = Math.min(1, agent.reputation + 0.03);
-            newEvents.push({
-              tick,
-              event_type: "arrest",
-              detail: { arrested: target.name, by: agent.name, until: tick + 100 },
-            });
-            newActions.push({
-              agent_id: agent.id, tick, action_type: "arrest",
-              detail: { target: target.name, reason: "low_reputation" },
-            });
+            newEvents.push({ tick, event_type: "arrest", detail: { arrested: target.name, by: agent.name, until: tick + 100 } });
           }
         }
       }
     }
 
-    // Communication: nearby agents exchange messages during free time
+    // Communication
     if (dayPhase === "free" && tick % 5 === 0) {
       for (const agent of agents) {
         if (!agent.alive || agent.imprisoned_until) continue;
@@ -398,14 +522,13 @@ Deno.serve(async (req) => {
         if (nearAgents.length === 0) continue;
         const partner = nearAgents[Math.floor(Math.random() * nearAgents.length)];
         newEvents.push({
-          tick,
-          event_type: "communication",
+          tick, event_type: "communication",
           detail: { from: agent.name, to: partner.name, topic: agent.energy < 40 ? "hunger" : agent.reputation > 0.5 ? "cooperation" : "exploration" },
         });
       }
     }
 
-    // Reproduction (only if below population cap, max 1 birth per tick)
+    // Reproduction (max 1 per tick, only on land)
     const aliveCount = agents.filter((a) => a.alive).length + babyAgents.length;
     if (tick % 80 === 0 && aliveCount < MAX_POPULATION && babyAgents.length === 0) {
       const fertile = agents.filter((a) => a.alive && a.energy > 65 && !a.imprisoned_until);
@@ -430,7 +553,8 @@ Deno.serve(async (req) => {
           childPersonality[key] = Math.max(0, Math.min(1, avg + mutation));
         }
 
-        const spawnTiles = neighbors(a.x, a.y, gridSize).filter(
+        // Spawn on nearby land tile
+        const spawnTiles = landNeighbors(a.x, a.y, gridSize).filter(
           ([nx, ny]) => tiles[tileIdx(nx, ny, gridSize)] !== "d"
         );
         const [cx, cy] = spawnTiles.length > 0
@@ -443,8 +567,7 @@ Deno.serve(async (req) => {
         babyAgents.push({
           owner_id: a.owner_id,
           name: childName,
-          x: cx,
-          y: cy,
+          x: cx, y: cy,
           energy: 50,
           max_age: 2000 + Math.floor(Math.random() * 800),
           personality: childPersonality as any,
@@ -454,30 +577,32 @@ Deno.serve(async (req) => {
         });
 
         newEvents.push({
-          tick,
-          event_type: "birth",
+          tick, event_type: "birth",
           detail: { parent_a: a.name, parent_b: partner.name, child: childName },
         });
       }
     }
 
-    // Food/water spawn
+    // Food/water spawn (only on land)
     if (tick % FOOD_SPAWN_INTERVAL === 0) {
       const rate = foodSpawnRate(season);
-      for (let i = 0; i < tiles.length; i++) {
-        if (tiles[i] === "e" && Math.random() < rate) {
-          tiles[i] = "f";
+      for (let y = 0; y < gridSize; y++) {
+        for (let x = 0; x < gridSize; x++) {
+          const idx = tileIdx(x, y, gridSize);
+          if (!isLand(x, y)) continue;
+          if (tiles[idx] === "e" && Math.random() < rate) {
+            tiles[idx] = "f";
+          }
         }
       }
-      // Farm bonus: farms spawn extra food nearby
+      // Farm bonus
       for (let y = 0; y < gridSize; y++) {
         for (let x = 0; x < gridSize; x++) {
           if (tiles[tileIdx(x, y, gridSize)] === "F") {
             for (let dy = -FARM_SPAWN_RADIUS; dy <= FARM_SPAWN_RADIUS; dy++) {
               for (let dx = -FARM_SPAWN_RADIUS; dx <= FARM_SPAWN_RADIUS; dx++) {
-                const nx = x + dx;
-                const ny = y + dy;
-                if (nx >= 0 && ny >= 0 && nx < gridSize && ny < gridSize) {
+                const nx = x + dx, ny = y + dy;
+                if (nx >= 0 && ny >= 0 && nx < gridSize && ny < gridSize && isLand(nx, ny)) {
                   const idx = tileIdx(nx, ny, gridSize);
                   if (tiles[idx] === "e" && Math.random() < FARM_SPAWN_CHANCE) {
                     tiles[idx] = "f";
@@ -490,90 +615,79 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Disaster
+    // Disasters (only on land)
     if (tick % DISASTER_INTERVAL === 0 && Math.random() < 0.3) {
-      const cx = Math.floor(Math.random() * gridSize);
-      const cy = Math.floor(Math.random() * gridSize);
-      const radius = 2 + Math.floor(Math.random() * 3);
-      let affected = 0;
-      for (let dy = -radius; dy <= radius; dy++) {
-        for (let dx = -radius; dx <= radius; dx++) {
-          const nx = cx + dx;
-          const ny = cy + dy;
-          if (nx >= 0 && ny >= 0 && nx < gridSize && ny < gridSize) {
-            const idx = tileIdx(nx, ny, gridSize);
-            if (tiles[idx] === "f" || tiles[idx] === "t") {
-              tiles[idx] = "e";
-              affected++;
+      // Pick a random land cell
+      const landCells: [number, number][] = [];
+      for (let y = 0; y < gridSize; y++) {
+        for (let x = 0; x < gridSize; x++) {
+          if (isLand(x, y)) landCells.push([x, y]);
+        }
+      }
+      if (landCells.length > 0) {
+        const [cx, cy] = landCells[Math.floor(Math.random() * landCells.length)];
+        const radius = 2 + Math.floor(Math.random() * 2);
+        let affected = 0;
+        for (let dy = -radius; dy <= radius; dy++) {
+          for (let dx = -radius; dx <= radius; dx++) {
+            const nx = cx + dx, ny = cy + dy;
+            if (nx >= 0 && ny >= 0 && nx < gridSize && ny < gridSize && isLand(nx, ny)) {
+              const idx = tileIdx(nx, ny, gridSize);
+              if (tiles[idx] === "f" || tiles[idx] === "t") {
+                tiles[idx] = "e";
+                affected++;
+              }
             }
           }
         }
-      }
-      if (affected > 0) {
-        const disasterType = season === "winter" ? "blizzard" : season === "summer" ? "drought" : "storm";
-        newEvents.push({
-          tick,
-          event_type: "disaster",
-          detail: { type: disasterType, center: [cx, cy], radius, tiles_destroyed: affected },
-        });
+        if (affected > 0) {
+          const disasterType = season === "winter" ? "blizzard" : season === "summer" ? "drought" : "storm";
+          newEvents.push({ tick, event_type: "disaster", detail: { type: disasterType, center: [cx, cy], radius, tiles_destroyed: affected } });
 
-        for (const agent of agents) {
-          if (agent.alive && Math.abs(agent.x - cx) <= radius && Math.abs(agent.y - cy) <= radius) {
-            const damage = 10 + Math.random() * 15;
-            agent.energy -= damage;
-            if (agent.energy <= 0) {
-              agent.alive = false;
-              agent.energy = 0;
-              (agent as any).cause_of_death = "disaster";
-              deaths.push(agent.id);
-              newEvents.push({ tick, event_type: "death", detail: { agent_id: agent.id, name: agent.name, cause: "disaster" } });
+          for (const agent of agents) {
+            if (agent.alive && Math.abs(agent.x - cx) <= radius && Math.abs(agent.y - cy) <= radius) {
+              const damage = 10 + Math.random() * 15;
+              agent.energy -= damage;
+              if (agent.energy <= 0) {
+                agent.alive = false;
+                agent.energy = 0;
+                (agent as any).cause_of_death = "disaster";
+                deaths.push(agent.id);
+                newEvents.push({ tick, event_type: "death", detail: { agent_id: agent.id, name: agent.name, cause: "disaster" } });
+              }
             }
           }
         }
       }
     }
 
-    // Season change event
     if (tick % SEASON_LENGTH === 0) {
       newEvents.push({ tick, event_type: "season_change", detail: { season } });
     }
 
     // Batch write
     await supabase.from("world_state").update({
-      tick,
-      season,
-      day_phase: dayPhase,
-      last_tick_at: new Date().toISOString(),
+      tick, season, day_phase: dayPhase, last_tick_at: new Date().toISOString(),
     }).eq("id", 1);
 
     await supabase.from("world_tiles").update({ tiles: tiles.join("") }).eq("id", 1);
 
     for (const agent of agents) {
       const update: Record<string, unknown> = {
-        x: agent.x,
-        y: agent.y,
-        energy: agent.energy,
-        age: agent.age,
-        alive: agent.alive,
-        day_phase: agent.day_phase,
-        reputation: agent.reputation,
-        imprisoned_until: agent.imprisoned_until,
-        pending_suggestion: agent.pending_suggestion,
+        x: agent.x, y: agent.y, energy: agent.energy, age: agent.age,
+        alive: agent.alive, day_phase: agent.day_phase, reputation: agent.reputation,
+        imprisoned_until: agent.imprisoned_until, pending_suggestion: agent.pending_suggestion,
       };
-      if (!agent.alive) {
-        update.cause_of_death = (agent as any).cause_of_death;
-      }
+      if (!agent.alive) update.cause_of_death = (agent as any).cause_of_death;
       await supabase.from("agents").update(update).eq("id", agent.id);
     }
 
     if (babyAgents.length > 0) {
       await supabase.from("agents").insert(babyAgents);
     }
-
     if (newActions.length > 0) {
       await supabase.from("agent_actions").insert(newActions);
     }
-
     if (newEvents.length > 0) {
       await supabase.from("world_events").insert(newEvents);
     }

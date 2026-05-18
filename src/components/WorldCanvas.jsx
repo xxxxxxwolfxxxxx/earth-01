@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useWorld } from '../contexts/WorldContext'
+import { isLand, landBaseColor, OCEAN_COLOR, DEEP_OCEAN_COLOR } from '../lib/landMask'
 
-const CELL = 16
+const CELL = 20
 const GAP = 1
 const STEP = CELL + GAP
 
 const TILE_COLORS = {
-  e: [15, 15, 30],
   f: [34, 197, 94],
   w: [59, 130, 246],
   d: [239, 68, 68],
@@ -14,8 +14,9 @@ const TILE_COLORS = {
   b: [168, 85, 247],
   s: [234, 179, 8],
   p: [127, 29, 29],
-  r: [120, 113, 108],
+  r: [160, 150, 140],
   F: [76, 175, 80],
+  P: [100, 160, 220],
 }
 
 const SEASON_LABELS = { spring: 'Frühling', summer: 'Sommer', autumn: 'Herbst', winter: 'Winter' }
@@ -39,37 +40,93 @@ export default function WorldCanvas() {
     canvas.width = size
     canvas.height = size
 
-    ctx.fillStyle = '#050510'
-    ctx.fillRect(0, 0, size, size)
-
+    // Draw map background
     for (let y = 0; y < gridSize; y++) {
       for (let x = 0; x < gridSize; x++) {
         const idx = y * gridSize + x
         const tile = tiles[idx] || 'e'
-        const color = TILE_COLORS[tile] || TILE_COLORS.e
+        const land = isLand(x, y)
+        let color
+
+        if (!land) {
+          // Ocean with subtle depth variation
+          const depth = Math.sin(x * 0.3) * 5 + Math.cos(y * 0.2) * 3
+          color = [
+            OCEAN_COLOR[0] + depth,
+            OCEAN_COLOR[1] + depth + 5,
+            OCEAN_COLOR[2] + depth + 10
+          ]
+        } else if (tile === 'e') {
+          color = landBaseColor(y)
+        } else if (TILE_COLORS[tile]) {
+          color = TILE_COLORS[tile]
+        } else {
+          color = landBaseColor(y)
+        }
+
         ctx.fillStyle = `rgb(${color[0]}, ${color[1]}, ${color[2]})`
         ctx.fillRect(x * STEP, y * STEP, CELL, CELL)
+
+        // Subtle border for land cells
+        if (land && tile === 'e') {
+          ctx.strokeStyle = 'rgba(0,0,0,0.08)'
+          ctx.strokeRect(x * STEP, y * STEP, CELL, CELL)
+        }
       }
     }
 
+    // Draw coastlines
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)'
+    ctx.lineWidth = 1
+    for (let y = 0; y < gridSize; y++) {
+      for (let x = 0; x < gridSize; x++) {
+        if (!isLand(x, y)) continue
+        const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]]
+        for (const [dx, dy] of dirs) {
+          const nx = x + dx, ny = y + dy
+          if (nx < 0 || ny < 0 || nx >= gridSize || ny >= gridSize || !isLand(nx, ny)) {
+            const sx = x * STEP
+            const sy = y * STEP
+            if (dx === 1) { ctx.beginPath(); ctx.moveTo(sx + CELL, sy); ctx.lineTo(sx + CELL, sy + CELL); ctx.stroke() }
+            if (dx === -1) { ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx, sy + CELL); ctx.stroke() }
+            if (dy === 1) { ctx.beginPath(); ctx.moveTo(sx, sy + CELL); ctx.lineTo(sx + CELL, sy + CELL); ctx.stroke() }
+            if (dy === -1) { ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + CELL, sy); ctx.stroke() }
+          }
+        }
+      }
+    }
+
+    // Draw agents
     for (const agent of agents) {
       if (!agent.alive) continue
       const ax = agent.x * STEP + CELL / 2
       const ay = agent.y * STEP + CELL / 2
-      const radius = CELL * 0.45
+      const radius = CELL * 0.4
 
       const energyRatio = agent.energy / 100
       const r = Math.round(251 * (1 - agent.reputation * 0.3))
       const g = Math.round(191 * energyRatio)
       const b = Math.round(36 + agent.reputation * 100)
 
+      // Agent glow
+      ctx.beginPath()
+      ctx.arc(ax, ay, radius + 2, 0, Math.PI * 2)
+      ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.3)`
+      ctx.fill()
+
+      // Agent body
       ctx.beginPath()
       ctx.arc(ax, ay, radius, 0, Math.PI * 2)
       ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
       ctx.fill()
 
+      // White border for visibility
+      ctx.strokeStyle = 'rgba(255,255,255,0.6)'
+      ctx.lineWidth = 1
+      ctx.stroke()
+
       if (agent.day_phase === 'sleep') {
-        ctx.globalAlpha = 0.4
+        ctx.globalAlpha = 0.5
         ctx.fillStyle = '#60a5fa'
         ctx.font = `${CELL * 0.5}px sans-serif`
         ctx.textAlign = 'center'
@@ -87,7 +144,7 @@ export default function WorldCanvas() {
         ctx.strokeStyle = '#ef444480'
         ctx.lineWidth = 1
         ctx.beginPath()
-        ctx.arc(ax, ay, radius + 3, 0, Math.PI * 2)
+        ctx.arc(ax, ay, radius + 4, 0, Math.PI * 2)
         ctx.stroke()
       }
     }
@@ -122,11 +179,7 @@ export default function WorldCanvas() {
   }
 
   if (error) {
-    return (
-      <div className="text-center py-32 text-danger-400">
-        Fehler: {error}
-      </div>
-    )
+    return <div className="text-center py-32 text-danger-400">Fehler: {error}</div>
   }
 
   const season = worldState?.season ?? 'spring'
@@ -136,7 +189,6 @@ export default function WorldCanvas() {
 
   return (
     <div className="space-y-4">
-      {/* Stats Bar */}
       <div className="flex flex-wrap items-center gap-4 text-sm">
         <div className="flex items-center gap-2">
           <span className="text-gray-500">Tick</span>
@@ -161,8 +213,7 @@ export default function WorldCanvas() {
       </div>
 
       <div className="flex gap-4 flex-col lg:flex-row">
-        {/* Canvas */}
-        <div className="flex-1 overflow-auto rounded-2xl border border-white/10 bg-cosmos-800 p-2">
+        <div className="flex-1 overflow-auto rounded-2xl border border-white/10 bg-[#0a1e3d] p-2">
           <canvas
             ref={canvasRef}
             onClick={handleCanvasClick}
@@ -171,9 +222,7 @@ export default function WorldCanvas() {
           />
         </div>
 
-        {/* Side Panel */}
         <div className="w-full lg:w-72 space-y-4">
-          {/* Agent Detail */}
           {hoveredAgent && (
             <div className="p-4 rounded-xl bg-white/[0.03] border border-white/10">
               <h4 className="font-display text-white font-bold text-sm mb-2">{hoveredAgent.name}</h4>
@@ -195,7 +244,6 @@ export default function WorldCanvas() {
             </div>
           )}
 
-          {/* Events */}
           <div className="p-4 rounded-xl bg-white/[0.03] border border-white/10">
             <button
               onClick={() => setShowEvents(!showEvents)}
@@ -221,6 +269,7 @@ export default function WorldCanvas() {
                         evt.event_type === 'crime' ? 'text-red-500' :
                         evt.event_type === 'communication' ? 'text-blue-300' :
                         evt.event_type === 'build' ? 'text-purple-300' :
+                        evt.event_type === 'voyage' ? 'text-cyan-300' :
                         'text-gray-300'
                       }>
                         {evt.event_type === 'death' && `☠ ${evt.detail?.name} (${evt.detail?.cause})`}
@@ -230,7 +279,8 @@ export default function WorldCanvas() {
                         {evt.event_type === 'arrest' && `🔒 ${evt.detail?.arrested} verhaftet von ${evt.detail?.by}`}
                         {evt.event_type === 'crime' && `💀 ${evt.detail?.thief} bestiehlt ${evt.detail?.victim}`}
                         {evt.event_type === 'communication' && `💬 ${evt.detail?.from} → ${evt.detail?.to}`}
-                        {evt.event_type === 'build' && `🏗 ${evt.detail?.builder} baut ${evt.detail?.type === 'F' ? 'Farm' : evt.detail?.type === 's' ? 'Unterschlupf' : evt.detail?.type === 'r' ? 'Straße' : 'Gebäude'}`}
+                        {evt.event_type === 'build' && `🏗 ${evt.detail?.builder} baut ${evt.detail?.type === 'F' ? 'Farm' : evt.detail?.type === 's' ? 'Unterschlupf' : evt.detail?.type === 'r' ? 'Straße' : evt.detail?.type === 'P' ? 'Hafen' : 'Gebäude'}`}
+                        {evt.event_type === 'voyage' && `⛵ ${evt.detail?.agent} überquert das Meer`}
                       </span>
                     </div>
                   ))
@@ -239,7 +289,6 @@ export default function WorldCanvas() {
             )}
           </div>
 
-          {/* Stats */}
           <div className="p-4 rounded-xl bg-white/[0.03] border border-white/10">
             <h4 className="font-display text-white font-bold text-sm mb-2">Statistiken</h4>
             <div className="space-y-1 text-xs text-gray-400">
@@ -251,7 +300,6 @@ export default function WorldCanvas() {
                 const imprisoned = alive.filter(a => a.imprisoned_until).length
                 const births = events.filter(e => e.event_type === 'birth').length
                 const deaths = events.filter(e => e.event_type === 'death').length
-                const crimes = events.filter(e => e.event_type === 'crime').length
                 const builds = events.filter(e => e.event_type === 'build').length
                 return (
                   <>
@@ -259,9 +307,8 @@ export default function WorldCanvas() {
                     <div className="flex justify-between"><span>Avg. Reputation</span><span className="text-white font-mono">{avgRep}</span></div>
                     <div className="flex justify-between"><span>Max. Generation</span><span className="text-white font-mono">{maxGen}</span></div>
                     <div className="flex justify-between"><span>Im Gefängnis</span><span className="text-white font-mono">{imprisoned}</span></div>
-                    <div className="flex justify-between"><span>Geburten (sichtbar)</span><span className="text-life-400 font-mono">{births}</span></div>
-                    <div className="flex justify-between"><span>Tode (sichtbar)</span><span className="text-danger-400 font-mono">{deaths}</span></div>
-                    {crimes > 0 && <div className="flex justify-between"><span>Verbrechen</span><span className="text-red-500 font-mono">{crimes}</span></div>}
+                    <div className="flex justify-between"><span>Geburten</span><span className="text-life-400 font-mono">{births}</span></div>
+                    <div className="flex justify-between"><span>Tode</span><span className="text-danger-400 font-mono">{deaths}</span></div>
                     {builds > 0 && <div className="flex justify-between"><span>Gebaut</span><span className="text-purple-300 font-mono">{builds}</span></div>}
                   </>
                 )
@@ -269,20 +316,20 @@ export default function WorldCanvas() {
             </div>
           </div>
 
-          {/* Legend */}
           <div className="p-4 rounded-xl bg-white/[0.03] border border-white/10">
             <h4 className="font-display text-white font-bold text-sm mb-2">Legende</h4>
             <div className="grid grid-cols-2 gap-1 text-xs text-gray-400">
               {[
-                ['f', 'Nahrung', '#22c55e'],
-                ['w', 'Wasser', '#3b82f6'],
-                ['t', 'Baum', '#16a34a'],
-                ['d', 'Gefahr', '#ef4444'],
-                ['b', 'Gebäude', '#a855f7'],
-                ['s', 'Unterschlupf', '#eab308'],
-                ['F', 'Farm', '#4caf50'],
-                ['r', 'Straße', '#78716c'],
-              ].map(([, label, color]) => (
+                ['Nahrung', '#22c55e'],
+                ['Wasser', '#3b82f6'],
+                ['Baum', '#16a34a'],
+                ['Gefahr', '#ef4444'],
+                ['Gebäude', '#a855f7'],
+                ['Unterschlupf', '#eab308'],
+                ['Farm', '#4caf50'],
+                ['Straße', '#a09690'],
+                ['Hafen', '#64a0dc'],
+              ].map(([label, color]) => (
                 <div key={label} className="flex items-center gap-1">
                   <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: color }} />
                   {label}
