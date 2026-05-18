@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Menu, X, Globe, BookOpen, Cpu, Eye } from 'lucide-react'
+import { Menu, X, Globe, BookOpen, Cpu, Eye, LayoutDashboard, LogIn, LogOut, User } from 'lucide-react'
+import { useAuth } from '../contexts/AuthContext'
 
 function GithubIcon({ className }) {
   return (
@@ -15,11 +16,13 @@ const links = [
   { to: '/wissen', label: 'Wissen', icon: BookOpen },
   { to: '/konfigurator', label: 'Agent erstellen', icon: Cpu },
   { to: '/welt', label: 'Welt beobachten', icon: Eye },
+  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, auth: true },
 ]
 
 export default function Navigation() {
   const [open, setOpen] = useState(false)
   const location = useLocation()
+  const { user, signOut } = useAuth()
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-cosmos-900/70 border-b border-white/5">
@@ -35,7 +38,7 @@ export default function Navigation() {
           </Link>
 
           <div className="hidden md:flex items-center gap-1">
-            {links.map(({ to, label, icon: Icon }) => (
+            {links.filter(l => !l.auth || user).map(({ to, label, icon: Icon }) => (
               <Link
                 key={to}
                 to={to}
@@ -57,6 +60,29 @@ export default function Navigation() {
             >
               <GithubIcon className="w-5 h-5" />
             </a>
+            {user ? (
+              <div className="flex items-center gap-2 ml-2">
+                <span className="text-sm text-gray-400 flex items-center gap-1">
+                  <User className="w-4 h-4" />
+                  {user.user_metadata?.user_name || user.email?.split('@')[0]}
+                </span>
+                <button
+                  onClick={signOut}
+                  className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-all bg-transparent border-none cursor-pointer"
+                  title="Abmelden"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <Link
+                to="/login"
+                className="ml-2 flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium no-underline text-gray-400 hover:text-white hover:bg-white/5 transition-all"
+              >
+                <LogIn className="w-4 h-4" />
+                Login
+              </Link>
+            )}
           </div>
 
           <button
@@ -69,7 +95,7 @@ export default function Navigation() {
 
         {open && (
           <div className="md:hidden pb-4 border-t border-white/5 mt-2 pt-4">
-            {links.map(({ to, label, icon: Icon }) => (
+            {links.filter(l => !l.auth || user).map(({ to, label, icon: Icon }) => (
               <Link
                 key={to}
                 to={to}
@@ -84,6 +110,24 @@ export default function Navigation() {
                 {label}
               </Link>
             ))}
+            {user ? (
+              <button
+                onClick={() => { signOut(); setOpen(false) }}
+                className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-400 hover:text-white w-full bg-transparent border-none cursor-pointer"
+              >
+                <LogOut className="w-4 h-4" />
+                Abmelden
+              </button>
+            ) : (
+              <Link
+                to="/login"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium no-underline text-gray-400 hover:text-white"
+              >
+                <LogIn className="w-4 h-4" />
+                Login
+              </Link>
+            )}
           </div>
         )}
       </div>

@@ -61,3 +61,7 @@
   0% { top: -2px; }
   100% { top: 100%; }
 }
+@keyframes nebula-drift {
+  0% { transform: translate(-50%, -50%) scale(1); }
+  100% { transform: translate(-45%, -55%) scale(1.1); }
+}

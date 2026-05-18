@@ -39,10 +39,9 @@ export default function Home() {
   return (
     <div>
       {/* Hero */}
-      <section className="min-h-screen flex flex-col items-center justify-center text-center px-4 pt-16 relative">
-        <div className="absolute inset-0 bg-gradient-to-b from-blue-500/5 via-transparent to-transparent pointer-events-none" />
-        <Earth size={320} />
-        <div className="mt-8 max-w-3xl relative">
+      <section className="min-h-screen flex flex-col items-center justify-end text-center px-4 pb-20 relative">
+        <Earth />
+        <div className="max-w-3xl relative">
           <h1 className="font-display text-5xl sm:text-7xl font-bold text-white leading-tight tracking-tight">
             Earth <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-emerald-400 bg-clip-text text-transparent">0.1</span>
           </h1>

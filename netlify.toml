@@ -1,0 +1,37 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[[headers]]
+  for = "/*.mp4"
+  [headers.values]
+    Content-Type = "video/mp4"
+    Accept-Ranges = "bytes"
+
+[[headers]]
+  for = "/*.jpg"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000"
+
+[[redirects]]
+  from = "/earth.mp4"
+  to = "/earth.mp4"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/earth-web.mp4"
+  to = "/earth-web.mp4"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/earth-poster.jpg"
+  to = "/earth-poster.jpg"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

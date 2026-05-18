@@ -1,86 +1,98 @@
 import { useState } from 'react'
-import { Cpu, Zap, Shield, Users, Brain, Eye, Copy, Check, ChevronDown, ChevronUp } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Cpu, Users, Shield, Eye, Heart, Rocket, Check, Loader2, LogIn } from 'lucide-react'
+import { useAuth } from '../contexts/AuthContext'
+import { spawnAgent } from '../lib/worldService'
 
 const PRESETS = [
   {
     name: 'Sammler',
-    desc: 'Sucht effizient nach Nahrung und vermeidet Gefahren',
-    config: { priority: 'food', social: 'neutral', risk: 'low', memory: true, communication: false },
+    desc: 'Fokus auf Nahrung, vermeidet Risiken, kooperiert wenig',
+    personality: { priority: 0.8, social_mode: 0.3, risk_tolerance: 0.2, curiosity: 0.3, cooperation: 0.4 },
   },
   {
     name: 'Entdecker',
-    desc: 'Erkundet die Welt und nimmt Risiken in Kauf',
-    config: { priority: 'explore', social: 'neutral', risk: 'high', memory: true, communication: false },
+    desc: 'Hohe Neugier, risikofreudig, erkundet die Welt',
+    personality: { priority: 0.3, social_mode: 0.5, risk_tolerance: 0.8, curiosity: 0.9, cooperation: 0.4 },
   },
   {
     name: 'Sozialer',
-    desc: 'Bildet Gruppen, teilt Ressourcen und kommuniziert',
-    config: { priority: 'food', social: 'cooperative', risk: 'medium', memory: true, communication: true },
+    desc: 'Bildet Gruppen, teilt Ressourcen, baut Beziehungen auf',
+    personality: { priority: 0.5, social_mode: 0.9, risk_tolerance: 0.4, curiosity: 0.5, cooperation: 0.9 },
   },
   {
     name: 'Stratege',
-    desc: 'Nutzt KI um komplexe Entscheidungen zu treffen',
-    config: { priority: 'balanced', social: 'selective', risk: 'calculated', memory: true, communication: true, useLLM: true },
+    desc: 'Ausgewogen, berechnet Risiken, plant voraus',
+    personality: { priority: 0.6, social_mode: 0.6, risk_tolerance: 0.5, curiosity: 0.6, cooperation: 0.6 },
   },
 ]
 
-const PROVIDERS = [
-  { id: 'openai', name: 'OpenAI', models: ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini'] },
-  { id: 'anthropic', name: 'Anthropic', models: ['claude-haiku-4-5-20251001', 'claude-sonnet-4-6'] },
-  { id: 'google', name: 'Google', models: ['gemini-2.0-flash', 'gemini-2.5-pro'] },
-  { id: 'custom', name: 'Eigener Endpunkt', models: [] },
+const SLIDERS = [
+  { key: 'priority', label: 'Arbeitsfokus', icon: Cpu, low: 'Erkundung', high: 'Überleben' },
+  { key: 'social_mode', label: 'Sozialverhalten', icon: Users, low: 'Einzelgänger', high: 'Gesellig' },
+  { key: 'risk_tolerance', label: 'Risikobereitschaft', icon: Shield, low: 'Vorsichtig', high: 'Mutig' },
+  { key: 'curiosity', label: 'Neugier', icon: Eye, low: 'Fokussiert', high: 'Neugierig' },
+  { key: 'cooperation', label: 'Kooperation', icon: Heart, low: 'Egoistisch', high: 'Hilfsbereit' },
 ]
 
 export default function AgentConfigurator() {
-  const [config, setConfig] = useState({
-    name: '',
-    priority: 'food',
-    social: 'neutral',
-    risk: 'medium',
-    memory: true,
-    communication: false,
-    useLLM: false,
-    provider: '',
-    apiKey: '',
-    model: '',
-    customEndpoint: '',
-    maxCallsPerHour: 20,
-    maxTokensPerCall: 200,
+  const { user } = useAuth()
+  const navigate = useNavigate()
+  const [name, setName] = useState('')
+  const [personality, setPersonality] = useState({
+    priority: 0.5, social_mode: 0.5, risk_tolerance: 0.5, curiosity: 0.5, cooperation: 0.5,
   })
-  const [copied, setCopied] = useState(false)
-  const [showAdvanced, setShowAdvanced] = useState(false)
   const [activePreset, setActivePreset] = useState(null)
+  const [spawning, setSpawning] = useState(false)
+  const [error, setError] = useState(null)
+  const [success, setSuccess] = useState(null)
 
   const applyPreset = (preset, idx) => {
-    setConfig(prev => ({ ...prev, ...preset.config, name: preset.name }))
+    setPersonality({ ...preset.personality })
+    setName(preset.name)
     setActivePreset(idx)
+    setError(null)
   }
 
-  const generatedJSON = JSON.stringify({
-    name: config.name || 'Mein Agent',
-    behavior: {
-      priority: config.priority,
-      socialMode: config.social,
-      riskTolerance: config.risk,
-      useMemory: config.memory,
-      communicate: config.communication,
-    },
-    ...(config.useLLM ? {
-      llm: {
-        provider: config.provider,
-        model: config.model,
-        limits: {
-          maxCallsPerHour: config.maxCallsPerHour,
-          maxTokensPerCall: config.maxTokensPerCall,
-        },
-      },
-    } : {}),
-  }, null, 2)
+  const handleSlider = (key, value) => {
+    setPersonality(prev => ({ ...prev, [key]: parseFloat(value) }))
+    setActivePreset(null)
+  }
 
-  const copyConfig = () => {
-    navigator.clipboard.writeText(generatedJSON)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+  const handleSpawn = async () => {
+    if (!name.trim()) {
+      setError('Dein Agent braucht einen Namen')
+      return
+    }
+    setSpawning(true)
+    setError(null)
+    setSuccess(null)
+    try {
+      const agent = await spawnAgent({ name: name.trim(), personality })
+      setSuccess(`${agent.name} wurde in die Welt gesetzt! Position: (${agent.x}, ${agent.y})`)
+      setName('')
+      setActivePreset(null)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSpawning(false)
+    }
+  }
+
+  if (!user) {
+    return (
+      <div className="text-center py-16">
+        <LogIn className="w-12 h-12 text-nebula-400 mx-auto mb-4" />
+        <h3 className="font-display text-white text-xl font-bold mb-2">Anmeldung erforderlich</h3>
+        <p className="text-gray-400 mb-6">Um einen Agenten zu erstellen, musst du angemeldet sein.</p>
+        <button
+          onClick={() => navigate('/login')}
+          className="px-6 py-3 bg-gradient-to-r from-nebula-500 to-blue-600 text-white rounded-xl font-display font-semibold hover:shadow-lg hover:shadow-nebula-500/25 transition-all cursor-pointer border-none"
+        >
+          Jetzt anmelden
+        </button>
+      </div>
+    )
   }
 
   return (
@@ -111,244 +123,83 @@ export default function AgentConfigurator() {
             <label className="block text-sm font-medium text-gray-300 mb-2">Name deines Agenten</label>
             <input
               type="text"
-              value={config.name}
-              onChange={e => setConfig(prev => ({ ...prev, name: e.target.value }))}
+              value={name}
+              onChange={e => setName(e.target.value)}
               placeholder="z.B. Explorer-3000"
+              maxLength={30}
               className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:border-nebula-400 focus:ring-1 focus:ring-nebula-400 transition"
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              <Zap className="inline w-4 h-4 mr-1" /> Priorität
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                ['food', 'Nahrung'],
-                ['explore', 'Erkundung'],
-                ['balanced', 'Ausgewogen'],
-              ].map(([val, label]) => (
-                <button
-                  key={val}
-                  onClick={() => setConfig(prev => ({ ...prev, priority: val }))}
-                  className={`py-2 px-3 rounded-lg text-sm border transition cursor-pointer ${
-                    config.priority === val
-                      ? 'bg-nebula-500/20 border-nebula-400 text-white'
-                      : 'bg-white/5 border-white/10 text-gray-400 hover:text-white'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              <Users className="inline w-4 h-4 mr-1" /> Sozialverhalten
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                ['cooperative', 'Kooperativ'],
-                ['neutral', 'Neutral'],
-                ['selective', 'Selektiv'],
-              ].map(([val, label]) => (
-                <button
-                  key={val}
-                  onClick={() => setConfig(prev => ({ ...prev, social: val }))}
-                  className={`py-2 px-3 rounded-lg text-sm border transition cursor-pointer ${
-                    config.social === val
-                      ? 'bg-nebula-500/20 border-nebula-400 text-white'
-                      : 'bg-white/5 border-white/10 text-gray-400 hover:text-white'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              <Shield className="inline w-4 h-4 mr-1" /> Risikobereitschaft
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                ['low', 'Niedrig'],
-                ['medium', 'Mittel'],
-                ['high', 'Hoch'],
-              ].map(([val, label]) => (
-                <button
-                  key={val}
-                  onClick={() => setConfig(prev => ({ ...prev, risk: val }))}
-                  className={`py-2 px-3 rounded-lg text-sm border transition cursor-pointer ${
-                    config.risk === val
-                      ? 'bg-nebula-500/20 border-nebula-400 text-white'
-                      : 'bg-white/5 border-white/10 text-gray-400 hover:text-white'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex gap-4">
-            <label className="flex items-center gap-2 cursor-pointer">
+          {SLIDERS.map(({ key, label, icon: Icon, low, high }) => (
+            <div key={key}>
+              <label className="flex items-center gap-1 text-sm font-medium text-gray-300 mb-2">
+                <Icon className="w-4 h-4 text-nebula-400" /> {label}
+              </label>
               <input
-                type="checkbox"
-                checked={config.memory}
-                onChange={e => setConfig(prev => ({ ...prev, memory: e.target.checked }))}
-                className="w-4 h-4 accent-nebula-400"
+                type="range"
+                min="0" max="1" step="0.05"
+                value={personality[key]}
+                onChange={e => handleSlider(key, e.target.value)}
+                className="w-full accent-nebula-400"
               />
-              <span className="text-sm text-gray-300">Gedächtnis</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={config.communication}
-                onChange={e => setConfig(prev => ({ ...prev, communication: e.target.checked }))}
-                className="w-4 h-4 accent-nebula-400"
-              />
-              <span className="text-sm text-gray-300">Kommunikation</span>
-            </label>
-          </div>
-
-          <div className="border-t border-white/10 pt-4">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={config.useLLM}
-                onChange={e => setConfig(prev => ({ ...prev, useLLM: e.target.checked }))}
-                className="w-4 h-4 accent-nebula-400"
-              />
-              <Brain className="w-4 h-4 text-nebula-400" />
-              <span className="text-sm font-medium text-gray-300">KI-Gehirn aktivieren (eigener API-Key)</span>
-            </label>
-
-            {config.useLLM && (
-              <div className="mt-4 space-y-4 pl-6 border-l-2 border-nebula-500/30">
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">Anbieter</label>
-                  <select
-                    value={config.provider}
-                    onChange={e => setConfig(prev => ({ ...prev, provider: e.target.value, model: '' }))}
-                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:border-nebula-400"
-                  >
-                    <option value="">Wählen...</option>
-                    {PROVIDERS.map(p => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {config.provider && config.provider !== 'custom' && (
-                  <div>
-                    <label className="block text-sm text-gray-400 mb-1">Modell</label>
-                    <select
-                      value={config.model}
-                      onChange={e => setConfig(prev => ({ ...prev, model: e.target.value }))}
-                      className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:border-nebula-400"
-                    >
-                      <option value="">Wählen...</option>
-                      {PROVIDERS.find(p => p.id === config.provider)?.models.map(m => (
-                        <option key={m} value={m}>{m}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                {config.provider === 'custom' && (
-                  <div>
-                    <label className="block text-sm text-gray-400 mb-1">API-Endpunkt</label>
-                    <input
-                      type="url"
-                      value={config.customEndpoint}
-                      onChange={e => setConfig(prev => ({ ...prev, customEndpoint: e.target.value }))}
-                      placeholder="https://api.example.com/v1/chat"
-                      className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:border-nebula-400"
-                    />
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">API-Key</label>
-                  <input
-                    type="password"
-                    value={config.apiKey}
-                    onChange={e => setConfig(prev => ({ ...prev, apiKey: e.target.value }))}
-                    placeholder="sk-..."
-                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:border-nebula-400"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Wird nur lokal im Browser gespeichert, nie an unseren Server gesendet.</p>
-                </div>
-
-                <button
-                  onClick={() => setShowAdvanced(!showAdvanced)}
-                  className="flex items-center gap-1 text-sm text-nebula-400 bg-transparent border-none cursor-pointer hover:text-nebula-300"
-                >
-                  {showAdvanced ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                  Limits konfigurieren
-                </button>
-
-                {showAdvanced && (
-                  <div className="space-y-3">
-                    <div>
-                      <label className="flex justify-between text-sm text-gray-400 mb-1">
-                        <span>Max. Calls/Stunde</span>
-                        <span className="text-white font-mono">{config.maxCallsPerHour}</span>
-                      </label>
-                      <input
-                        type="range" min="1" max="100"
-                        value={config.maxCallsPerHour}
-                        onChange={e => setConfig(prev => ({ ...prev, maxCallsPerHour: Number(e.target.value) }))}
-                        className="w-full accent-nebula-400"
-                      />
-                    </div>
-                    <div>
-                      <label className="flex justify-between text-sm text-gray-400 mb-1">
-                        <span>Max. Tokens/Call</span>
-                        <span className="text-white font-mono">{config.maxTokensPerCall}</span>
-                      </label>
-                      <input
-                        type="range" min="50" max="1000" step="50"
-                        value={config.maxTokensPerCall}
-                        onChange={e => setConfig(prev => ({ ...prev, maxTokensPerCall: Number(e.target.value) }))}
-                        className="w-full accent-nebula-400"
-                      />
-                    </div>
-                  </div>
-                )}
+              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <span>{low}</span>
+                <span className="text-white font-mono">{personality[key].toFixed(2)}</span>
+                <span>{high}</span>
               </div>
-            )}
-          </div>
+            </div>
+          ))}
         </div>
 
         <div>
-          <div className="sticky top-20">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="font-display text-white text-lg font-bold m-0">Agent-Konfiguration</h3>
-              <button
-                onClick={copyConfig}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white/10 text-white text-sm border-none cursor-pointer hover:bg-white/20 transition"
-              >
-                {copied ? <Check className="w-4 h-4 text-life-400" /> : <Copy className="w-4 h-4" />}
-                {copied ? 'Kopiert!' : 'Kopieren'}
-              </button>
+          <div className="sticky top-20 space-y-4">
+            <div className="p-6 rounded-2xl bg-white/[0.03] border border-white/10">
+              <h3 className="font-display text-white text-lg font-bold mb-4">Vorschau: {name || '???'}</h3>
+              <div className="space-y-3">
+                {SLIDERS.map(({ key, label, low, high }) => (
+                  <div key={key}>
+                    <div className="flex justify-between text-xs text-gray-400 mb-1">
+                      <span>{label}</span>
+                      <span>{personality[key] > 0.6 ? high : personality[key] < 0.4 ? low : 'Ausgewogen'}</span>
+                    </div>
+                    <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-nebula-600 to-nebula-400 rounded-full transition-all duration-300"
+                        style={{ width: `${personality[key] * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-            <pre className="bg-cosmos-800 border border-white/10 rounded-xl p-4 text-sm font-mono text-life-400 overflow-x-auto whitespace-pre-wrap">
-              {generatedJSON}
-            </pre>
 
-            <div className="mt-4 p-4 rounded-xl bg-nebula-500/10 border border-nebula-500/20">
-              <h4 className="font-display text-white text-sm font-bold mb-2">So geht es weiter</h4>
-              <ol className="text-sm text-gray-400 space-y-2 list-decimal list-inside m-0 p-0">
-                <li>Kopiere die Konfiguration oben</li>
-                <li>Registriere dich auf Earth 0.1</li>
-                <li>Lade deinen Agenten in die Welt</li>
-                <li>Beobachte wie er überlebt und sich entwickelt</li>
-              </ol>
-            </div>
+            {error && (
+              <div className="p-3 rounded-xl bg-danger-500/10 border border-danger-500/20 text-danger-400 text-sm">
+                {error}
+              </div>
+            )}
+            {success && (
+              <div className="p-3 rounded-xl bg-life-500/10 border border-life-500/20 text-life-400 text-sm">
+                {success}
+              </div>
+            )}
+
+            <button
+              onClick={handleSpawn}
+              disabled={spawning}
+              className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-nebula-500 to-blue-600 text-white rounded-xl font-display font-bold text-lg hover:shadow-lg hover:shadow-nebula-500/25 transition-all cursor-pointer border-none disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {spawning ? (
+                <><Loader2 className="w-5 h-5 animate-spin" /> Wird erstellt...</>
+              ) : (
+                <><Rocket className="w-5 h-5" /> Agent in die Welt setzen</>
+              )}
+            </button>
+
+            <p className="text-xs text-gray-500 text-center">
+              Maximal 2 lebende Agenten pro Spieler. Dein Agent startet mit 80 Energie.
+            </p>
           </div>
         </div>
       </div>

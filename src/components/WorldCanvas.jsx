@@ -1,336 +1,256 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { useWorld } from '../contexts/WorldContext'
 
-const GRID = 80
-const CELL = 8
-const COLORS = {
-  empty: '#0a0a20',
-  food: '#22c55e',
-  water: '#3b82f6',
-  danger: '#ef4444',
-  agent: '#fbbf24',
-  agentSmart: '#7c3aed',
-  agentSocial: '#ec4899',
+const CELL = 16
+const GAP = 1
+const STEP = CELL + GAP
+
+const TILE_COLORS = {
+  e: [15, 15, 30],
+  f: [34, 197, 94],
+  w: [59, 130, 246],
+  d: [239, 68, 68],
+  t: [22, 163, 74],
+  b: [168, 85, 247],
+  s: [234, 179, 8],
+  p: [127, 29, 29],
+  r: [120, 113, 108],
 }
 
-function createWorld() {
-  const tiles = Array.from({ length: GRID * GRID }, (_, i) => {
-    const x = i % GRID, y = Math.floor(i / GRID)
-    const dist = Math.hypot(x - GRID / 2, y - GRID / 2)
-    if (dist > GRID * 0.45) return 'empty'
-    const noise = Math.random()
-    if (noise < 0.15) return 'food'
-    if (noise < 0.2) return 'water'
-    if (noise < 0.22) return 'danger'
-    return 'empty'
-  })
-  return tiles
-}
-
-function createAgents(count = 30) {
-  return Array.from({ length: count }, (_, i) => ({
-    id: i,
-    x: Math.floor(Math.random() * GRID),
-    y: Math.floor(Math.random() * GRID),
-    energy: 50 + Math.random() * 50,
-    type: Math.random() > 0.7 ? 'smart' : Math.random() > 0.5 ? 'social' : 'basic',
-    dx: 0, dy: 0,
-    age: 0,
-    messages: [],
-  }))
-}
+const SEASON_LABELS = { spring: 'Frühling', summer: 'Sommer', autumn: 'Herbst', winter: 'Winter' }
+const PHASE_LABELS = { work: 'Arbeit', free: 'Freizeit', sleep: 'Schlaf' }
+const SEASON_COLORS = { spring: '#22c55e', summer: '#fbbf24', autumn: '#f97316', winter: '#60a5fa' }
+const PHASE_COLORS = { work: '#f97316', free: '#34d399', sleep: '#60a5fa' }
 
 export default function WorldCanvas() {
+  const { worldState, tiles, agents, events, loading, error } = useWorld()
   const canvasRef = useRef(null)
-  const worldRef = useRef(createWorld())
-  const agentsRef = useRef(createAgents())
-  const tickRef = useRef(0)
-  const [stats, setStats] = useState({ agents: 30, tick: 0, season: 'Frühling' })
-  const [running, setRunning] = useState(true)
-  const [speed, setSpeed] = useState(200)
   const [hoveredAgent, setHoveredAgent] = useState(null)
+  const [showEvents, setShowEvents] = useState(true)
 
-  const seasons = ['Frühling', 'Sommer', 'Herbst', 'Winter']
+  const gridSize = worldState?.grid_size ?? 30
 
-  const tick = useCallback(() => {
-    const world = worldRef.current
-    const agents = agentsRef.current
-    tickRef.current++
-    const t = tickRef.current
-    const season = seasons[Math.floor(t / 100) % 4]
-
-    const foodMultiplier = season === 'Sommer' ? 1.5 : season === 'Winter' ? 0.3 : 1
-
-    if (t % 50 === 0 && Math.random() < 0.3) {
-      const cx = Math.floor(Math.random() * GRID)
-      const cy = Math.floor(Math.random() * GRID)
-      for (let dx = -5; dx <= 5; dx++) {
-        for (let dy = -5; dy <= 5; dy++) {
-          const nx = cx + dx, ny = cy + dy
-          if (nx >= 0 && nx < GRID && ny >= 0 && ny < GRID && Math.hypot(dx, dy) < 5) {
-            world[ny * GRID + nx] = Math.random() < 0.4 ? 'danger' : 'empty'
-          }
-        }
-      }
-    }
-
-    if (t % 10 === 0) {
-      for (let i = 0; i < 5; i++) {
-        const idx = Math.floor(Math.random() * world.length)
-        if (world[idx] === 'empty' && Math.random() < 0.1 * foodMultiplier) {
-          world[idx] = 'food'
-        }
-      }
-    }
-
-    const occupied = new Set(agents.map(a => `${a.x},${a.y}`))
-
-    agents.forEach(agent => {
-      agent.age++
-      agent.energy -= season === 'Winter' ? 1.5 : 0.8
-
-      let bestDx = 0, bestDy = 0, bestScore = -Infinity
-      for (let dx = -2; dx <= 2; dx++) {
-        for (let dy = -2; dy <= 2; dy++) {
-          if (dx === 0 && dy === 0) continue
-          const nx = agent.x + dx, ny = agent.y + dy
-          if (nx < 0 || nx >= GRID || ny < 0 || ny >= GRID) continue
-          const tile = world[ny * GRID + nx]
-          let score = Math.random() * 2 - 1
-          if (tile === 'food') score += 10
-          if (tile === 'water') score += 3
-          if (tile === 'danger') score -= 15
-          if (agent.type === 'social') {
-            const nearby = agents.filter(a => a.id !== agent.id && Math.hypot(a.x - nx, a.y - ny) < 3)
-            score += nearby.length * 2
-          }
-          if (agent.type === 'smart') {
-            const dangerNear = agents.filter(a => {
-              const ti = world[a.y * GRID + a.x]
-              return ti === 'danger' && Math.hypot(a.x - nx, a.y - ny) < 4
-            })
-            score -= dangerNear.length * 3
-          }
-          if (score > bestScore) {
-            bestScore = score
-            bestDx = Math.sign(dx)
-            bestDy = Math.sign(dy)
-          }
-        }
-      }
-
-      const nx = Math.max(0, Math.min(GRID - 1, agent.x + bestDx))
-      const ny = Math.max(0, Math.min(GRID - 1, agent.y + bestDy))
-      agent.x = nx
-      agent.y = ny
-
-      const tile = world[ny * GRID + nx]
-      if (tile === 'food') {
-        agent.energy = Math.min(100, agent.energy + 20 * foodMultiplier)
-        world[ny * GRID + nx] = 'empty'
-      } else if (tile === 'danger') {
-        agent.energy -= 30
-      }
-
-      if (agent.type === 'social' && agent.energy > 30) {
-        const nearby = agents.filter(a => a.id !== agent.id && Math.hypot(a.x - agent.x, a.y - agent.y) < 3 && a.energy < 20)
-        nearby.forEach(a => {
-          a.energy += 5
-          agent.energy -= 5
-          a.messages.push({ from: agent.id, type: 'help', tick: t })
-        })
-      }
-    })
-
-    if (t % 30 === 0) {
-      const alive = agents.filter(a => a.energy > 0)
-      alive.forEach(a => {
-        if (a.energy > 70 && alive.length < 60) {
-          const child = {
-            id: Math.random() * 100000 | 0,
-            x: a.x + (Math.random() > 0.5 ? 1 : -1),
-            y: a.y + (Math.random() > 0.5 ? 1 : -1),
-            energy: 30,
-            type: Math.random() < 0.8 ? a.type : ['basic', 'smart', 'social'][Math.floor(Math.random() * 3)],
-            dx: 0, dy: 0, age: 0, messages: [],
-          }
-          child.x = Math.max(0, Math.min(GRID - 1, child.x))
-          child.y = Math.max(0, Math.min(GRID - 1, child.y))
-          agents.push(child)
-          a.energy -= 20
-        }
-      })
-    }
-
-    const survived = agents.filter(a => a.energy > 0)
-    agentsRef.current = survived
-
-    setStats({
-      agents: survived.length,
-      tick: t,
-      season,
-      smart: survived.filter(a => a.type === 'smart').length,
-      social: survived.filter(a => a.type === 'social').length,
-      basic: survived.filter(a => a.type === 'basic').length,
-    })
-  }, [])
-
-  useEffect(() => {
-    if (!running) return
-    const interval = setInterval(tick, speed)
-    return () => clearInterval(interval)
-  }, [running, speed, tick])
-
-  useEffect(() => {
+  const draw = useCallback(() => {
     const canvas = canvasRef.current
+    if (!canvas || !tiles) return
     const ctx = canvas.getContext('2d')
-    let animId
+    const size = gridSize * STEP - GAP
+    canvas.width = size
+    canvas.height = size
 
-    function draw() {
-      const w = GRID * CELL
-      canvas.width = w
-      canvas.height = w
-      ctx.fillStyle = COLORS.empty
-      ctx.fillRect(0, 0, w, w)
+    ctx.fillStyle = '#050510'
+    ctx.fillRect(0, 0, size, size)
 
-      const world = worldRef.current
-      for (let i = 0; i < world.length; i++) {
-        if (world[i] === 'empty') continue
-        const x = (i % GRID) * CELL, y = Math.floor(i / GRID) * CELL
-        ctx.fillStyle = COLORS[world[i]]
-        ctx.globalAlpha = 0.6
-        ctx.fillRect(x + 1, y + 1, CELL - 2, CELL - 2)
+    for (let y = 0; y < gridSize; y++) {
+      for (let x = 0; x < gridSize; x++) {
+        const idx = y * gridSize + x
+        const tile = tiles[idx] || 'e'
+        const color = TILE_COLORS[tile] || TILE_COLORS.e
+        ctx.fillStyle = `rgb(${color[0]}, ${color[1]}, ${color[2]})`
+        ctx.fillRect(x * STEP, y * STEP, CELL, CELL)
+      }
+    }
+
+    for (const agent of agents) {
+      if (!agent.alive) continue
+      const ax = agent.x * STEP + CELL / 2
+      const ay = agent.y * STEP + CELL / 2
+      const radius = CELL * 0.45
+
+      const energyRatio = agent.energy / 100
+      const r = Math.round(251 * (1 - agent.reputation * 0.3))
+      const g = Math.round(191 * energyRatio)
+      const b = Math.round(36 + agent.reputation * 100)
+
+      ctx.beginPath()
+      ctx.arc(ax, ay, radius, 0, Math.PI * 2)
+      ctx.fillStyle = `rgb(${r}, ${g}, ${b})`
+      ctx.fill()
+
+      if (agent.day_phase === 'sleep') {
+        ctx.globalAlpha = 0.4
+        ctx.fillStyle = '#60a5fa'
+        ctx.font = `${CELL * 0.5}px sans-serif`
+        ctx.textAlign = 'center'
+        ctx.fillText('z', ax, ay - radius - 2)
         ctx.globalAlpha = 1
       }
 
-      agentsRef.current.forEach(agent => {
-        const x = agent.x * CELL, y = agent.y * CELL
-        const color = agent.type === 'smart' ? COLORS.agentSmart
-          : agent.type === 'social' ? COLORS.agentSocial
-          : COLORS.agent
-        ctx.fillStyle = color
+      if (agent.imprisoned_until) {
+        ctx.strokeStyle = '#ef4444'
+        ctx.lineWidth = 2
+        ctx.strokeRect(agent.x * STEP - 1, agent.y * STEP - 1, CELL + 2, CELL + 2)
+      }
+
+      if (agent.energy < 20) {
+        ctx.strokeStyle = '#ef444480'
+        ctx.lineWidth = 1
         ctx.beginPath()
-        ctx.arc(x + CELL / 2, y + CELL / 2, CELL / 2 - 1, 0, Math.PI * 2)
-        ctx.fill()
-
-        const energyPct = agent.energy / 100
-        ctx.fillStyle = energyPct > 0.5 ? '#22c55e' : energyPct > 0.2 ? '#fbbf24' : '#ef4444'
-        ctx.fillRect(x, y - 2, CELL * energyPct, 1)
-      })
-
-      animId = requestAnimationFrame(draw)
+        ctx.arc(ax, ay, radius + 3, 0, Math.PI * 2)
+        ctx.stroke()
+      }
     }
+  }, [tiles, agents, gridSize])
 
+  useEffect(() => {
     draw()
-    return () => cancelAnimationFrame(animId)
-  }, [])
+  }, [draw])
 
-  const handleCanvasHover = (e) => {
-    const rect = canvasRef.current.getBoundingClientRect()
-    const scale = (GRID * CELL) / rect.width
-    const mx = Math.floor((e.clientX - rect.left) * scale / CELL)
-    const my = Math.floor((e.clientY - rect.top) * scale / CELL)
-    const agent = agentsRef.current.find(a => a.x === mx && a.y === my)
-    setHoveredAgent(agent || null)
+  const handleCanvasClick = useCallback((e) => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const rect = canvas.getBoundingClientRect()
+    const scaleX = canvas.width / rect.width
+    const scaleY = canvas.height / rect.height
+    const mx = (e.clientX - rect.left) * scaleX
+    const my = (e.clientY - rect.top) * scaleY
+    const gx = Math.floor(mx / STEP)
+    const gy = Math.floor(my / STEP)
+
+    const clicked = agents.find(a => a.alive && a.x === gx && a.y === gy)
+    setHoveredAgent(clicked || null)
+  }, [agents])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-32 text-gray-400">
+        <div className="animate-spin w-8 h-8 border-2 border-nebula-400 border-t-transparent rounded-full mr-3" />
+        Lade Welt...
+      </div>
+    )
   }
+
+  if (error) {
+    return (
+      <div className="text-center py-32 text-danger-400">
+        Fehler: {error}
+      </div>
+    )
+  }
+
+  const season = worldState?.season ?? 'spring'
+  const dayPhase = worldState?.day_phase ?? 'work'
+  const tick = worldState?.tick ?? 0
+  const aliveCount = agents.filter(a => a.alive).length
 
   return (
     <div className="space-y-4">
+      {/* Stats Bar */}
       <div className="flex flex-wrap items-center gap-4 text-sm">
-        <button
-          onClick={() => setRunning(!running)}
-          className="px-4 py-2 rounded-lg bg-nebula-500 text-white border-none cursor-pointer hover:bg-nebula-600 transition font-medium"
-        >
-          {running ? 'Pause' : 'Start'}
-        </button>
-        <label className="flex items-center gap-2 text-gray-400">
-          Geschwindigkeit:
-          <input
-            type="range" min="50" max="500" value={speed}
-            onChange={e => setSpeed(Number(e.target.value))}
-            className="w-24 accent-nebula-400"
-          />
-        </label>
-        <button
-          onClick={() => {
-            worldRef.current = createWorld()
-            agentsRef.current = createAgents()
-            tickRef.current = 0
-          }}
-          className="px-4 py-2 rounded-lg bg-white/10 text-white border-none cursor-pointer hover:bg-white/20 transition font-medium"
-        >
-          Neustart
-        </button>
+        <div className="flex items-center gap-2">
+          <span className="text-gray-500">Tick</span>
+          <span className="text-white font-mono font-bold">{tick}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: SEASON_COLORS[season] }} />
+          <span style={{ color: SEASON_COLORS[season] }}>{SEASON_LABELS[season]}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: PHASE_COLORS[dayPhase] }} />
+          <span style={{ color: PHASE_COLORS[dayPhase] }}>{PHASE_LABELS[dayPhase]}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-gray-500">Agenten</span>
+          <span className="text-white font-mono">{aliveCount}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-gray-500">Tag</span>
+          <span className="text-white font-mono">{Math.floor(tick / 240)}</span>
+        </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-4">
-        <div className="relative">
+      <div className="flex gap-4 flex-col lg:flex-row">
+        {/* Canvas */}
+        <div className="flex-1 overflow-auto rounded-2xl border border-white/10 bg-cosmos-800 p-2">
           <canvas
             ref={canvasRef}
-            className="rounded-xl border border-white/10 w-full max-w-[640px] cursor-crosshair"
-            style={{ imageRendering: 'pixelated' }}
-            onMouseMove={handleCanvasHover}
-            onMouseLeave={() => setHoveredAgent(null)}
+            onClick={handleCanvasClick}
+            className="cursor-crosshair"
+            style={{ width: '100%', height: 'auto', imageRendering: 'pixelated' }}
           />
-          {hoveredAgent && (
-            <div className="absolute top-2 right-2 bg-cosmos-800/90 backdrop-blur border border-white/10 rounded-lg p-3 text-xs space-y-1 min-w-[160px]">
-              <div className="font-bold text-white">Agent #{hoveredAgent.id}</div>
-              <div>Typ: <span className={
-                hoveredAgent.type === 'smart' ? 'text-nebula-400' :
-                hoveredAgent.type === 'social' ? 'text-pink-400' : 'text-star-400'
-              }>{hoveredAgent.type}</span></div>
-              <div>Energie: {hoveredAgent.energy.toFixed(0)}%</div>
-              <div>Alter: {hoveredAgent.age} Ticks</div>
-              <div>Nachrichten: {hoveredAgent.messages.length}</div>
-            </div>
-          )}
         </div>
 
-        <div className="bg-cosmos-800/50 backdrop-blur border border-white/10 rounded-xl p-4 space-y-3 min-w-[200px]">
-          <h3 className="font-display font-bold text-white text-lg m-0">Statistiken</h3>
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-gray-400">Tick</span>
-              <span className="text-white font-mono">{stats.tick}</span>
+        {/* Side Panel */}
+        <div className="w-full lg:w-72 space-y-4">
+          {/* Agent Detail */}
+          {hoveredAgent && (
+            <div className="p-4 rounded-xl bg-white/[0.03] border border-white/10">
+              <h4 className="font-display text-white font-bold text-sm mb-2">{hoveredAgent.name}</h4>
+              <div className="space-y-1 text-xs text-gray-400">
+                <div>Energie: <span className="text-white font-mono">{Math.round(hoveredAgent.energy)}</span></div>
+                <div>Alter: <span className="text-white font-mono">{hoveredAgent.age}</span> / {hoveredAgent.max_age}</div>
+                <div>Position: <span className="text-white font-mono">({hoveredAgent.x}, {hoveredAgent.y})</span></div>
+                <div>Reputation: <span className="text-white font-mono">{hoveredAgent.reputation?.toFixed(2)}</span></div>
+                <div>Generation: <span className="text-white font-mono">{hoveredAgent.generation}</span></div>
+                <div className="pt-2 border-t border-white/5 mt-2">
+                  {Object.entries(hoveredAgent.personality || {}).map(([k, v]) => (
+                    <div key={k} className="flex justify-between">
+                      <span>{k}</span>
+                      <span className="text-white font-mono">{Number(v).toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
-            <div className="flex justify-between">
-              <span className="text-gray-400">Saison</span>
-              <span className="text-white">{stats.season}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-400">Agenten</span>
-              <span className="text-white font-mono">{stats.agents}</span>
-            </div>
-            <hr className="border-white/10" />
-            <div className="flex justify-between">
-              <span className="text-star-400">Basic</span>
-              <span className="text-white font-mono">{stats.basic || 0}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-nebula-400">Smart</span>
-              <span className="text-white font-mono">{stats.smart || 0}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-pink-400">Social</span>
-              <span className="text-white font-mono">{stats.social || 0}</span>
-            </div>
+          )}
+
+          {/* Events */}
+          <div className="p-4 rounded-xl bg-white/[0.03] border border-white/10">
+            <button
+              onClick={() => setShowEvents(!showEvents)}
+              className="w-full flex items-center justify-between text-sm font-display text-white font-bold bg-transparent border-none cursor-pointer p-0"
+            >
+              Ereignisse
+              <span className="text-gray-500 text-xs">{showEvents ? '▲' : '▼'}</span>
+            </button>
+            {showEvents && (
+              <div className="mt-2 space-y-1 max-h-60 overflow-y-auto">
+                {events.length === 0 ? (
+                  <p className="text-xs text-gray-500">Noch keine Ereignisse</p>
+                ) : (
+                  events.slice(0, 15).map((evt, i) => (
+                    <div key={i} className="text-xs text-gray-400 py-1 border-b border-white/5 last:border-0">
+                      <span className="text-gray-500 font-mono mr-1">T{evt.tick}</span>
+                      <span className={
+                        evt.event_type === 'death' ? 'text-danger-400' :
+                        evt.event_type === 'birth' ? 'text-life-400' :
+                        evt.event_type === 'disaster' ? 'text-energy-400' :
+                        evt.event_type === 'season_change' ? 'text-star-300' :
+                        'text-gray-300'
+                      }>
+                        {evt.event_type === 'death' && `☠ ${evt.detail?.name} (${evt.detail?.cause})`}
+                        {evt.event_type === 'birth' && `🌱 ${evt.detail?.child} geboren`}
+                        {evt.event_type === 'disaster' && `⚡ ${evt.detail?.type} bei (${evt.detail?.center?.[0]}, ${evt.detail?.center?.[1]})`}
+                        {evt.event_type === 'season_change' && `🌍 ${SEASON_LABELS[evt.detail?.season] || evt.detail?.season}`}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
           </div>
 
-          <div className="pt-2">
-            <h4 className="font-display text-white text-sm font-bold mb-2">Legende</h4>
-            <div className="grid grid-cols-2 gap-1 text-xs">
+          {/* Legend */}
+          <div className="p-4 rounded-xl bg-white/[0.03] border border-white/10">
+            <h4 className="font-display text-white font-bold text-sm mb-2">Legende</h4>
+            <div className="grid grid-cols-2 gap-1 text-xs text-gray-400">
               {[
-                ['Nahrung', '#22c55e'],
-                ['Wasser', '#3b82f6'],
-                ['Gefahr', '#ef4444'],
-                ['Basic', '#fbbf24'],
-                ['Smart', '#7c3aed'],
-                ['Social', '#ec4899'],
-              ].map(([label, color]) => (
-                <div key={label} className="flex items-center gap-1.5">
-                  <div className="w-3 h-3 rounded-full" style={{ background: color }} />
-                  <span className="text-gray-400">{label}</span>
+                ['f', 'Nahrung', '#22c55e'],
+                ['w', 'Wasser', '#3b82f6'],
+                ['t', 'Baum', '#16a34a'],
+                ['d', 'Gefahr', '#ef4444'],
+                ['b', 'Gebäude', '#a855f7'],
+                ['s', 'Unterschlupf', '#eab308'],
+              ].map(([, label, color]) => (
+                <div key={label} className="flex items-center gap-1">
+                  <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: color }} />
+                  {label}
                 </div>
               ))}
+              <div className="flex items-center gap-1 col-span-2 mt-1">
+                <span className="w-3 h-3 rounded-full bg-yellow-400" />
+                Agent (Farbe = Energie/Reputation)
+              </div>
             </div>
           </div>
         </div>
