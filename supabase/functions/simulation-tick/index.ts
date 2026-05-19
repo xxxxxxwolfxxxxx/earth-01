@@ -1329,10 +1329,17 @@ Deno.serve(async (req) => {
         const gen = Math.max(a.generation, partner.generation) + 1;
         const childName = CHILD_NAMES[Math.floor(Math.random() * CHILD_NAMES.length)] + "-" + gen;
 
+        const ownerForChild = a.owner_id ?? partner.owner_id;
+        const { count: parentAchCount } = await supabase
+          .from("dynasty_achievements")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", ownerForChild ?? "");
+        const childMaxAge = computeMaxAge(parentAchCount ?? 0);
+
         babyAgents.push({
           owner_id: a.owner_id, name: childName, x: cx, y: cy,
           energy: 50, materials: 5, knowledge: 0,
-          max_age: 2000 + Math.floor(Math.random() * 800),
+          max_age: childMaxAge,
           personality: childP as any, generation: gen,
           parent_a_id: a.id, parent_b_id: partner.id,
           role: "generalist", attack: 1.0, defense: 1.0,
