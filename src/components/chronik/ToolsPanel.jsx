@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { fetchAchievementsCatalog, fetchUnlockedAchievements } from '../../lib/worldService'
+import KeySetupPanel from './KeySetupPanel'
 
 const TOOL_DESCRIPTIONS = {
   web_search: 'Web-Suche im Chat: „Such mir Rezepte mit Auberginen."',
@@ -46,6 +47,7 @@ export default function ToolsPanel() {
 
   return (
     <div className="space-y-5">
+      <KeySetupPanel />
       <div>
         <h3 className="font-display text-lg font-bold text-white mb-2">
           Freigeschaltete Tools ({unlockedAch.length})
