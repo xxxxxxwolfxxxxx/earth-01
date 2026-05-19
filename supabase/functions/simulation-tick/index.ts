@@ -601,8 +601,9 @@ async function processDeaths(
     const heir = findHeir(dead.id, allAgents);
     if (heir) {
       // Erbe übernimmt
+      const dynastyName = profile.dynasty_name ?? "Dynasty";
       const newGen = profile.dynasty_generation + 1;
-      const newDisplayName = `${profile.dynasty_name} ${String(newGen).padStart(2,"0")}`;
+      const newDisplayName = `${dynastyName} ${String(newGen).padStart(2,"0")}`;
       await supabase.from("agents").update({ display_name: newDisplayName })
         .eq("id", heir.id);
       await supabase.from("profiles").update({
@@ -615,7 +616,7 @@ async function processDeaths(
         detail: {
           user_id: profile.id,
           deceased_id: dead.id,
-          deceased_display: (dead as any).display_name ?? profile.dynasty_name,
+          deceased_display: (dead as any).display_name ?? dynastyName,
           cause,
           heir_id: heir.id,
           heir_display: newDisplayName,
@@ -623,7 +624,7 @@ async function processDeaths(
         },
       });
       await sendTelegramMessage(targetFromProfile(profile as any),
-        `👑 <b>${(dead as any).display_name ?? profile.dynasty_name}</b> ist gestorben (${cause}).\n\nDie Linie wird fortgeführt von <b>${newDisplayName}</b> (Generation ${newGen}).`
+        `👑 <b>${(dead as any).display_name ?? dynastyName}</b> ist gestorben (${cause}).\n\nDie Linie wird fortgeführt von <b>${newDisplayName}</b> (Generation ${newGen}).`
       );
     } else {
       // Kinderlos → Klon
