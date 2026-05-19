@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { computeMaxAge } from "../_shared/dynasty.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -69,8 +70,8 @@ Deno.serve(async (req) => {
     .eq("owner_id", user.id)
     .eq("alive", true);
 
-  if ((count ?? 0) >= 2) {
-    return new Response(JSON.stringify({ error: "Maximal 2 lebende Agenten pro Spieler" }), {
+  if ((count ?? 0) >= 1) {
+    return new Response(JSON.stringify({ error: "Maximal 1 lebender Agent pro Spieler" }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
@@ -100,7 +101,11 @@ Deno.serve(async (req) => {
     y = Math.floor(Math.random() * gridSize);
   }
 
-  const maxAge = 2000 + Math.floor(Math.random() * 800);
+  const { count: achCount } = await supabaseAdmin
+    .from("dynasty_achievements")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", user.id);
+  const maxAge = computeMaxAge(achCount ?? 0);
 
   const { data: agent, error: insertError } = await supabaseAdmin
     .from("agents")
