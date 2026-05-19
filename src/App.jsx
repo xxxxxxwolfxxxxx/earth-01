@@ -11,6 +11,7 @@ import World from './pages/World'
 import Dashboard from './pages/Dashboard'
 import Login from './pages/Login'
 import AuthCallback from './pages/AuthCallback'
+import Chronik from './pages/Chronik'
 
 export default function App() {
   const location = useLocation()
@@ -28,6 +29,7 @@ export default function App() {
             <Route path="/konfigurator" element={<Configurator />} />
             <Route path="/welt" element={<World />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/chronik" element={<Chronik />} />
             <Route path="/login" element={<Login />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
           </Routes>
