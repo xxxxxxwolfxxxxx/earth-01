@@ -1,11 +1,13 @@
 import { supabase } from './supabase'
 
 export async function fetchWorldSnapshot() {
-  const [stateRes, tilesRes, agentsRes, eventsRes] = await Promise.all([
+  const [stateRes, tilesRes, agentsRes, eventsRes, techRes, alliancesRes] = await Promise.all([
     supabase.from('world_state').select('*').single(),
     supabase.from('world_tiles').select('tiles').single(),
     supabase.from('agents').select('*').eq('alive', true),
     supabase.from('world_events').select('*').order('tick', { ascending: false }).limit(20),
+    supabase.from('world_tech').select('*').single(),
+    supabase.from('alliances').select('*'),
   ])
 
   return {
@@ -13,13 +15,15 @@ export async function fetchWorldSnapshot() {
     tiles: tilesRes.data?.tiles ?? '',
     agents: agentsRes.data ?? [],
     events: eventsRes.data ?? [],
+    tech: techRes.data ?? { researched: [], current_research: null, research_points: 0 },
+    alliances: alliancesRes.data ?? [],
     error: stateRes.error || tilesRes.error || agentsRes.error || eventsRes.error,
   }
 }
 
 let channelCounter = 0
 
-export function subscribeToWorld(onWorldState, onTiles, onAgents, onEvents) {
+export function subscribeToWorld(onWorldState, onTiles, onAgents, onEvents, onTech, onAlliances) {
   const id = ++channelCounter
   const channels = []
 
@@ -59,6 +63,34 @@ export function subscribeToWorld(onWorldState, onTiles, onAgents, onEvents) {
       .subscribe()
   )
 
+  if (onTech) {
+    channels.push(
+      supabase
+        .channel(`world-tech-${id}`)
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'world_tech' }, (payload) => {
+          onTech(payload.new)
+        })
+        .subscribe()
+    )
+  }
+
+  if (onAlliances) {
+    channels.push(
+      supabase
+        .channel(`world-alliances-${id}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'alliances' }, (payload) => {
+          if (payload.eventType === 'INSERT') {
+            onAlliances((prev) => [...prev, payload.new])
+          } else if (payload.eventType === 'DELETE') {
+            onAlliances((prev) => prev.filter((a) => a.id !== payload.old.id))
+          } else {
+            onAlliances((prev) => prev.map((a) => (a.id === payload.new.id ? payload.new : a)))
+          }
+        })
+        .subscribe()
+    )
+  }
+
   return () => channels.forEach((ch) => supabase.removeChannel(ch))
 }
 
@@ -72,11 +104,11 @@ export async function spawnAgent({ name, personality, x, y }) {
     .eq('owner_id', user.id)
     .eq('alive', true)
 
-  if ((existing.count ?? 0) >= 2) {
-    throw new Error('Maximal 2 lebende Agenten pro Spieler')
+  if ((existing.count ?? 0) >= 1) {
+    throw new Error('Maximal 1 lebender Agent pro Spieler')
   }
 
-  const gridSize = 30
+  const gridSize = 60
   const safeX = Math.max(0, Math.min(gridSize - 1, x ?? Math.floor(Math.random() * gridSize)))
   const safeY = Math.max(0, Math.min(gridSize - 1, y ?? Math.floor(Math.random() * gridSize)))
 
@@ -98,6 +130,43 @@ export async function spawnAgent({ name, personality, x, y }) {
     .single()
 
   if (error) throw error
+
+  // Dynasty-Daten + Achievement-Count laden für max_age und display_name
+  const { data: profileNow } = await supabase
+    .from('profiles')
+    .select('main_agent_id, dynasty_name, dynasty_generation')
+    .eq('id', user.id)
+    .single()
+
+  const { count: achCount } = await supabase
+    .from('dynasty_achievements')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+
+  // Gleiche Formel wie computeMaxAge im _shared/dynasty.ts
+  const jitter = Math.floor((Math.random() - 0.5) * 400)
+  const computedMaxAge = 2400 + (achCount ?? 0) * 800 + jitter
+
+  const displayName = profileNow?.dynasty_name
+    ? `${profileNow.dynasty_name} ${String(profileNow.dynasty_generation ?? 1).padStart(2, '0')}`
+    : data.name
+
+  await supabase
+    .from('agents')
+    .update({ max_age: computedMaxAge, display_name: displayName })
+    .eq('id', data.id)
+
+  if (!profileNow?.main_agent_id) {
+    await supabase
+      .from('profiles')
+      .update({ main_agent_id: data.id })
+      .eq('id', user.id)
+  }
+
+  // data im Speicher mit den neuen Feldern syncen für caller
+  data.max_age = computedMaxAge
+  data.display_name = displayName
+
   return data
 }
 
@@ -134,6 +203,45 @@ export async function fetchAgentActions(agentId, limit = 50) {
     .limit(limit)
 
   return data ?? []
+}
+
+export async function setMoveTarget(agentId, x, y) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Nicht angemeldet')
+
+  const { error } = await supabase
+    .from('agents')
+    .update({ move_target_x: x, move_target_y: y })
+    .eq('id', agentId)
+    .eq('owner_id', user.id)
+
+  if (error) throw error
+}
+
+export async function clearMoveTarget(agentId) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Nicht angemeldet')
+
+  const { error } = await supabase
+    .from('agents')
+    .update({ move_target_x: null, move_target_y: null })
+    .eq('id', agentId)
+    .eq('owner_id', user.id)
+
+  if (error) throw error
+}
+
+export async function renameAgent(agentId, newName) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Nicht angemeldet')
+
+  const { error } = await supabase
+    .from('agents')
+    .update({ name: newName.trim() })
+    .eq('id', agentId)
+    .eq('owner_id', user.id)
+
+  if (error) throw error
 }
 
 export async function submitAgentSuggestion(agentId, suggestion) {
@@ -222,6 +330,42 @@ export async function fetchAgentMessages(agentId, limit = 50) {
   return (data ?? []).reverse()
 }
 
+// --- LLM Config (server-side for Telegram) ---
+
+export async function saveLLMToProfile({ apiKey, baseUrl, model }) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Nicht angemeldet')
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({
+      llm_api_key: apiKey || null,
+      llm_base_url: baseUrl || null,
+      llm_model: model || null,
+    })
+    .eq('id', user.id)
+
+  if (error) throw error
+}
+
+export async function fetchLLMFromProfile() {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const { data } = await supabase
+    .from('profiles')
+    .select('llm_api_key, llm_base_url, llm_model')
+    .eq('id', user.id)
+    .single()
+
+  if (!data || !data.llm_api_key) return null
+  return {
+    apiKey: data.llm_api_key,
+    baseUrl: data.llm_base_url,
+    model: data.llm_model,
+  }
+}
+
 export function subscribeToMessages(agentId, onMessage) {
   const id = ++channelCounter
   const channel = supabase
@@ -234,4 +378,86 @@ export function subscribeToMessages(agentId, onMessage) {
     .subscribe()
 
   return () => supabase.removeChannel(channel)
+}
+
+// --- Dynasty & Achievements ---
+
+export async function setDynasty({ name, emoji }) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Nicht angemeldet')
+
+  const trimmed = (name ?? '').trim()
+  if (trimmed.length < 2 || trimmed.length > 20) {
+    throw new Error('Dynastie-Name muss 2-20 Zeichen lang sein')
+  }
+  if (!emoji || emoji.length === 0) {
+    throw new Error('Bitte ein Emoji wählen')
+  }
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({
+      dynasty_name: trimmed,
+      dynasty_emoji: emoji,
+      dynasty_generation: 1,
+      dynasty_started_at: new Date().toISOString(),
+    })
+    .eq('id', user.id)
+
+  if (error) throw error
+}
+
+export async function fetchDynastyState() {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const { data } = await supabase
+    .from('profiles')
+    .select('main_agent_id, dynasty_name, dynasty_emoji, dynasty_generation, dynasty_started_at')
+    .eq('id', user.id)
+    .single()
+
+  if (!data) return null
+  return {
+    mainAgentId: data.main_agent_id,
+    name: data.dynasty_name,
+    emoji: data.dynasty_emoji,
+    generation: data.dynasty_generation,
+    startedAt: data.dynasty_started_at,
+  }
+}
+
+export async function fetchAchievementsCatalog() {
+  const { data, error } = await supabase
+    .from('achievements')
+    .select('*')
+    .order('display_order', { ascending: true })
+
+  if (error) throw error
+  return data ?? []
+}
+
+export async function fetchUnlockedAchievements() {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+
+  const { data, error } = await supabase
+    .from('dynasty_achievements')
+    .select('achievement_id, unlocked_at, unlocked_by_agent_id')
+    .eq('user_id', user.id)
+
+  if (error) throw error
+  return data ?? []
+}
+
+export async function setMainAgent(agentId) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Nicht angemeldet')
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({ main_agent_id: agentId })
+    .eq('id', user.id)
+
+  if (error) throw error
 }
