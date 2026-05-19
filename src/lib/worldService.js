@@ -490,6 +490,7 @@ export async function fetchFamilyEvents(limit = 30) {
   const { data: agentEvents } = await supabase
     .from('world_events')
     .select('*')
+    .in('event_type', ['achievement_unlocked', 'dynasty_succession', 'dynasty_childless_restart', 'birth', 'death'])
     .order('tick', { ascending: false })
     .limit(300)
 

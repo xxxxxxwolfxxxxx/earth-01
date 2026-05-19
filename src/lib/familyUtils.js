@@ -72,7 +72,7 @@ export function emojiForAgent(agent) {
   if (!agent) return '👤'
   const role = agent.role && ROLE_EMOJI[agent.role] ? agent.role : 'generalist'
   if ((agent.age ?? 0) < CHILD_AGE_MAX) return ROLE_EMOJI[role].child
-  const g = agent.gender === 'm' ? 'm' : agent.gender === 'f' ? 'f' : 'f'
+  const g = agent.gender === 'm' ? 'm' : 'f'
   return ROLE_EMOJI[role][g]
 }
 
