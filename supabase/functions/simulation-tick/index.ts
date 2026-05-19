@@ -457,6 +457,119 @@ function foodSpawnRate(season: string): number {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// ACHIEVEMENT ENGINE
+// ═══════════════════════════════════════════════════════════════════
+
+async function processAchievementsForUsers(
+  supabase: ReturnType<typeof createClient>,
+  livingAgents: any[],
+  worldTech: { researched: string[] },
+  alliances: any[],
+): Promise<void> {
+  // 1. Hole alle Profile mit main_agent_id
+  const { data: profiles, error: profErr } = await supabase
+    .from("profiles")
+    .select("id, main_agent_id, dynasty_name, dynasty_emoji, dynasty_generation, telegram_bot_token, telegram_chat_id")
+    .not("main_agent_id", "is", null);
+  if (profErr || !profiles) return;
+
+  // 2. Hole alle Achievements (Katalog) und alle freigeschalteten
+  const { data: catalog } = await supabase.from("achievements").select("*");
+  const { data: unlocked } = await supabase
+    .from("dynasty_achievements")
+    .select("user_id, achievement_id");
+  if (!catalog || !unlocked) return;
+
+  const unlockedByUser = new Map<string, Set<string>>();
+  for (const row of unlocked) {
+    if (!unlockedByUser.has(row.user_id)) unlockedByUser.set(row.user_id, new Set());
+    unlockedByUser.get(row.user_id)!.add(row.achievement_id);
+  }
+
+  // 3. Pro Profile: für jeden noch-nicht-freigeschalteten Achievement prüfen
+  const techSet = new Set(worldTech.researched ?? []);
+  for (const profile of profiles) {
+    const mainAgent = livingAgents.find((a) => a.id === profile.main_agent_id);
+    if (!mainAgent) continue;
+    const userUnlocked = unlockedByUser.get(profile.id) ?? new Set<string>();
+
+    // Nachfahren-Zähler
+    const descendants = countLivingDescendants(mainAgent.id, livingAgents);
+    // Buildings-Counter aus dem agent-Feld
+    const buildingsByAgent = new Map<string, number>();
+    const myBuildings = (mainAgent as any).buildings_built ?? {};
+    for (const k of Object.keys(myBuildings)) buildingsByAgent.set(k, myBuildings[k]);
+    // Alliances
+    const myAlliances = alliances.filter((a) =>
+      a.member_ids?.includes(mainAgent.id) || a.founder_id === mainAgent.id
+    );
+    const founded = alliances.filter((a) => a.founder_id === mainAgent.id).length;
+    const distinct = myAlliances.length;
+    // Kills (existiert schon auf agent-Tabelle aus migration 006)
+    const kills = (mainAgent as any).kills ?? 0;
+
+    const ctx: ConditionContext = {
+      agent: mainAgent as DAgentRow,
+      achievementCount: userUnlocked.size,
+      techResearched: techSet,
+      alliancesFoundedByAgent: founded,
+      alliancesDistinct: distinct,
+      descendantsAlive: descendants,
+      killsByAgent: kills,
+      buildingsByAgent,
+    };
+
+    for (const ach of catalog) {
+      if (userUnlocked.has(ach.id)) continue;
+      if (!evaluateCondition(ach.unlock_condition as any, ctx)) continue;
+
+      // Unlock!
+      await supabase.from("dynasty_achievements").insert({
+        user_id: profile.id,
+        achievement_id: ach.id,
+        unlocked_by_agent_id: mainAgent.id,
+      });
+      await supabase.from("world_events").insert({
+        tick: (mainAgent as any).tick ?? 0,
+        event_type: "achievement_unlocked",
+        detail: {
+          user_id: profile.id,
+          agent_id: mainAgent.id,
+          achievement_id: ach.id,
+          achievement_name: ach.name,
+          icon: ach.icon,
+        },
+      });
+      // Telegram
+      await sendTelegramMessage(targetFromProfile(profile as any),
+        `${ach.icon} <b>${profile.dynasty_name}</b> hat <b>${ach.name}</b> freigeschaltet!\n\n${ach.description}\nTool <code>${ach.tool_id}</code> ist nun verfügbar.`
+      );
+      userUnlocked.add(ach.id);
+    }
+  }
+}
+
+function countLivingDescendants(rootId: string, agents: any[]): number {
+  const set = new Set<string>([rootId]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const a of agents) {
+      if (!a.alive || set.has(a.id)) continue;
+      if (
+        (a.parent_a_id && set.has(a.parent_a_id)) ||
+        (a.parent_b_id && set.has(a.parent_b_id))
+      ) {
+        set.add(a.id);
+        changed = true;
+      }
+    }
+  }
+  set.delete(rootId);
+  return set.size;
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // MAIN SIMULATION LOOP
 // ═══════════════════════════════════════════════════════════════════
 
@@ -712,6 +825,11 @@ Deno.serve(async (req) => {
             tiles[tileIdx(agent.x, agent.y, gridSize)] = buildType;
             agent.reputation = Math.min(1, agent.reputation + 0.02);
             agent.has_built = true; // Quest tracking
+            // buildings_built counter
+            const built = (agent as any).buildings_built ?? {};
+            const tileType = buildType;
+            built[tileType] = (built[tileType] ?? 0) + 1;
+            (agent as any).buildings_built = built;
             detail = { built: buildType, at: [agent.x, agent.y] };
             newEvents.push({ tick, event_type: "build", detail: { builder: agent.name, type: buildType, at: [agent.x, agent.y] } });
           } else {
@@ -1259,6 +1377,7 @@ Deno.serve(async (req) => {
         drink_count: (agent as any).drink_count ?? 0,
         tiles_visited: (agent as any).tiles_visited ?? [],
         trades_completed: (agent as any).trades_completed ?? 0,
+        buildings_built: (agent as any).buildings_built ?? {},
       };
       if (!agent.alive) u.cause_of_death = (agent as any).cause_of_death;
       await supabase.from("agents").update(u).eq("id", agent.id);
@@ -1283,6 +1402,20 @@ Deno.serve(async (req) => {
     if (newActions.length > 0) await supabase.from("agent_actions").insert(newActions);
     if (newEvents.length > 0) await supabase.from("world_events").insert(newEvents);
     if (newMemories.length > 0) await supabase.from("agent_memory").insert(newMemories);
+
+    // Achievement-Engine — läuft am Tick-Ende, nutzt die frischen Agent-Daten
+    const { data: livingAgentsFresh } = await supabase
+      .from("agents").select("*").eq("alive", true);
+    const { data: worldTechFresh } = await supabase
+      .from("world_tech").select("*").single();
+    const { data: alliancesFresh } = await supabase
+      .from("alliances").select("*");
+    await processAchievementsForUsers(
+      supabase,
+      livingAgentsFresh ?? [],
+      worldTechFresh ?? { researched: [] },
+      alliancesFresh ?? [],
+    );
 
     if (tickNum < TICKS_PER_CALL - 1) await new Promise(r => setTimeout(r, TICK_DELAY_MS));
   }

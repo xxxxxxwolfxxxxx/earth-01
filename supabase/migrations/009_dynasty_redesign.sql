@@ -19,6 +19,7 @@ ALTER TABLE public.agents ADD COLUMN IF NOT EXISTS tiles_visited JSONB NOT NULL 
 ALTER TABLE public.agents ADD COLUMN IF NOT EXISTS trades_completed INT NOT NULL DEFAULT 0;
 ALTER TABLE public.agents ADD COLUMN IF NOT EXISTS display_name TEXT;
 -- display_name: "Gisela 03" — wird beim Erbeübergang/Klon-Spawn gesetzt.
+ALTER TABLE public.agents ADD COLUMN IF NOT EXISTS buildings_built JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 -- Achievement-Katalog (Seed in 010)
 CREATE TABLE IF NOT EXISTS public.achievements (
