@@ -570,6 +570,117 @@ function countLivingDescendants(rootId: string, agents: any[]): number {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// DYNASTY DEATH PROCESSING
+// ═══════════════════════════════════════════════════════════════════
+
+async function processDeaths(
+  supabase: ReturnType<typeof createClient>,
+  deadAgentIds: string[],
+): Promise<void> {
+  if (deadAgentIds.length === 0) return;
+  // Hole alle relevanten profiles (Hauptchar verloren?) und alle lebenden Agents
+  const { data: profiles } = await supabase
+    .from("profiles")
+    .select("id, main_agent_id, dynasty_name, dynasty_emoji, dynasty_generation, telegram_bot_token, telegram_chat_id")
+    .in("main_agent_id", deadAgentIds);
+  if (!profiles || profiles.length === 0) return;
+  // findHeir braucht lebende UND tote Agenten zur Stammbaum-Traversierung.
+  // Wir filtern auf die owner_ids der betroffenen User, um Bound zu halten.
+  const ownerIds = profiles.map((p) => p.id);
+  const { data: ownerAgents } = await supabase
+    .from("agents").select("*").in("owner_id", ownerIds);
+  const allAgents = (ownerAgents ?? []) as DAgentRow[];
+  const { data: deadAgents } = await supabase
+    .from("agents").select("*").in("id", deadAgentIds);
+
+  for (const profile of profiles) {
+    const dead = deadAgents?.find((a) => a.id === profile.main_agent_id);
+    if (!dead) continue;
+    const cause = (dead as any).cause_of_death ?? "unknown";
+
+    const heir = findHeir(dead.id, allAgents);
+    if (heir) {
+      // Erbe übernimmt
+      const newGen = profile.dynasty_generation + 1;
+      const newDisplayName = `${profile.dynasty_name} ${String(newGen).padStart(2,"0")}`;
+      await supabase.from("agents").update({ display_name: newDisplayName })
+        .eq("id", heir.id);
+      await supabase.from("profiles").update({
+        main_agent_id: heir.id,
+        dynasty_generation: newGen,
+      }).eq("id", profile.id);
+      await supabase.from("world_events").insert({
+        tick: (dead as any).age ?? 0,
+        event_type: "dynasty_succession",
+        detail: {
+          user_id: profile.id,
+          deceased_id: dead.id,
+          deceased_display: (dead as any).display_name ?? profile.dynasty_name,
+          cause,
+          heir_id: heir.id,
+          heir_display: newDisplayName,
+          generation: newGen,
+        },
+      });
+      await sendTelegramMessage(targetFromProfile(profile as any),
+        `👑 <b>${(dead as any).display_name ?? profile.dynasty_name}</b> ist gestorben (${cause}).\n\nDie Linie wird fortgeführt von <b>${newDisplayName}</b> (Generation ${newGen}).`
+      );
+    } else {
+      // Kinderlos → Klon
+      const { count: achCount } = await supabase
+        .from("dynasty_achievements")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", profile.id);
+      const newMaxAge = computeMaxAge(achCount ?? 0);
+      const clone = buildClone(dead as DAgentRow, newMaxAge, profile.dynasty_name ?? "Dynasty");
+
+      // Insert clone und main_agent neu setzen
+      const { data: insertedClone } = await supabase
+        .from("agents").insert(clone).select().single();
+      if (insertedClone) {
+        await supabase.from("profiles").update({
+          main_agent_id: insertedClone.id,
+          dynasty_generation: 1,
+        }).eq("id", profile.id);
+      }
+
+      // Jüngstes Achievement strippen (höchstes unlocked_at)
+      const { data: latest } = await supabase
+        .from("dynasty_achievements")
+        .select("achievement_id, unlocked_at")
+        .eq("user_id", profile.id)
+        .order("unlocked_at", { ascending: false })
+        .limit(1);
+      let lostName = "";
+      if (latest && latest.length > 0) {
+        const lostId = latest[0].achievement_id;
+        const { data: lostAch } = await supabase
+          .from("achievements").select("name, icon").eq("id", lostId).single();
+        lostName = lostAch ? `${lostAch.icon} ${lostAch.name}` : lostId;
+        await supabase.from("dynasty_achievements")
+          .delete()
+          .eq("user_id", profile.id).eq("achievement_id", lostId);
+      }
+
+      await supabase.from("world_events").insert({
+        tick: (dead as any).age ?? 0,
+        event_type: "dynasty_childless_restart",
+        detail: {
+          user_id: profile.id,
+          deceased_id: dead.id,
+          cause,
+          lost_achievement: lostName,
+          clone_id: insertedClone?.id ?? null,
+        },
+      });
+      await sendTelegramMessage(targetFromProfile(profile as any),
+        `💔 Familie <b>${profile.dynasty_name}</b> ist ausgestorben.\n\nEin Klon-Nachfolger versucht erneut. Verloren: ${lostName || "(noch nichts)"}.`
+      );
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // MAIN SIMULATION LOOP
 // ═══════════════════════════════════════════════════════════════════
 
@@ -1402,6 +1513,10 @@ Deno.serve(async (req) => {
     if (newActions.length > 0) await supabase.from("agent_actions").insert(newActions);
     if (newEvents.length > 0) await supabase.from("world_events").insert(newEvents);
     if (newMemories.length > 0) await supabase.from("agent_memory").insert(newMemories);
+
+    // processDeaths verarbeitet alle in diesem Tick verstorbenen Hauptchars
+    const deadIds = deaths;
+    await processDeaths(supabase, deadIds);
 
     // Achievement-Engine — läuft am Tick-Ende, nutzt die frischen Agent-Daten
     const { data: livingAgentsFresh } = await supabase
