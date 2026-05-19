@@ -461,3 +461,47 @@ export async function setMainAgent(agentId) {
 
   if (error) throw error
 }
+
+export async function fetchFamilyEvents(limit = 30) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+
+  // Events die explizit diesen user betreffen
+  const userIdStr = user.id
+  const { data: dynastyEvents } = await supabase
+    .from('world_events')
+    .select('*')
+    .in('event_type', ['dynasty_succession', 'dynasty_childless_restart', 'achievement_unlocked'])
+    .order('tick', { ascending: false })
+    .limit(200)
+
+  // Filter client-side auf user_id im detail
+  const mineByUserId = (dynastyEvents ?? []).filter(
+    (e) => e.detail?.user_id === userIdStr
+  )
+
+  // Zusätzlich: events deren agent_id zu einem eigenen Agenten gehört
+  const { data: myAgents } = await supabase
+    .from('agents')
+    .select('id')
+    .eq('owner_id', user.id)
+  const myAgentIds = new Set((myAgents ?? []).map((a) => a.id))
+
+  const { data: agentEvents } = await supabase
+    .from('world_events')
+    .select('*')
+    .order('tick', { ascending: false })
+    .limit(300)
+
+  const mineByAgentId = (agentEvents ?? []).filter((e) => {
+    const aid = e.detail?.agent_id || e.detail?.deceased_id || e.detail?.heir_id
+    return aid && myAgentIds.has(aid)
+  })
+
+  // Merge und dedupe per id
+  const merged = new Map()
+  for (const e of [...mineByUserId, ...mineByAgentId]) merged.set(e.id, e)
+  const all = Array.from(merged.values())
+  all.sort((a, b) => (b.tick ?? 0) - (a.tick ?? 0))
+  return all.slice(0, limit)
+}
