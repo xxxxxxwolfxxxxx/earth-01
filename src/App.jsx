@@ -10,6 +10,7 @@ import AuthCallback from './pages/AuthCallback'
 import TechTree from './pages/TechTree'
 import Lesson from './pages/Lesson'
 import Keys from './pages/Keys'
+import Provider from './pages/Provider'
 
 export default function App() {
   const location = useLocation()
@@ -26,6 +27,7 @@ export default function App() {
           <Route path="/tech-tree" element={<TechTree />} />
           <Route path="/lesson/:skillId" element={<Lesson />} />
           <Route path="/keys" element={<Keys />} />
+          <Route path="/provider" element={<Provider />} />
           <Route path="/login" element={<Login />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
         </Routes>
