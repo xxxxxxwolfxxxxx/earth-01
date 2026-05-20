@@ -27,7 +27,15 @@ Earth 0.1 wird eine **Bildungsplattform für KI- und Agenten-Grundlagen**, in de
 
 ## Begriffsklärung
 
-- **Tech-Tree** — horizontaler Verzeichnisbaum aus Skill-Knoten mit Voraussetzungs-Linien. Startpunkt ist „Mein Agent" links, neue Fähigkeiten wachsen nach rechts.
+- **Tech-Tree** — Hub im Zentrum (Pflicht-Skills: API-Keys + Telegram), aus dem 7 thematische Lern-Pfade radial nach rechts wachsen. Jeder Pfad ist eigenständig nutzbar und hat eine eigene Farbe.
+- **Lern-Pfad** — eine Themen-Reise aus 4-7 zusammenhängenden Skills. Sieben Pfade im MVP:
+  - 🌐 **Daten aus dem Netz** — REST, JSON, Free-APIs
+  - 🛡️ **Sicherheit & Privatsphäre** — Hashes, Passwörter, Leak-Checks
+  - 🧠 **Mich selbst verstehen** — Tracking-Skills für Stimmung, Habits, Tagebuch
+  - 🤖 **Sprachmodelle** — LLM-Chat, RAG, Mini-Modell, Token-Economy
+  - ⏰ **Automation & Routinen** — Reminder, Cron, Workflows
+  - ☁️ **Eigene Cloud** — Google Drive / GitHub / OneDrive als Speicher
+  - 🎁 **Werkzeuge & Spielerei** — QR, Witze, NASA, Würfel, Vokabel-Karten
 - **Skill** — eine erlernbare Fähigkeit des Agenten. Vier Typen:
   - **Skript-Skill** — deterministischer Code, kein LLM nötig (z.B. Wetter, Math-Eval). Kann ggf. browser-direkt laufen wenn CORS erlaubt.
   - **LLM-Skill** — nutzt User's eigenes Sprachmodell für eine eng definierte Aufgabe (z.B. Rezept-Berater)
@@ -65,15 +73,18 @@ Keine zusätzliche Infrastruktur, keine neue npm-Dependency wenn vermeidbar.
 ### Subsystem 1 — Tech-Tree (das Herz)
 
 **Visuelles Design:**
-- SVG-basiert, horizontaler Fluss (links → rechts)
-- Knoten: abgerundete Rechtecke mit Icon + Name
-- Verbindungslinien: Bezier-Kurven zwischen Knoten-Mitten, Farbe nach Ziel-Tier
+- SVG-basiert, **Hub im Zentrum links + 7 radiale Pfade** nach rechts
+- **Hub-Knoten** (lila): API-Keys + Telegram — Voraussetzung für fast alles
+- **Pfad-Bahnen**: jede Themen-Linie hat eigene Farbe (Daten=Blau, Sicherheit=Rot, Tracking=Lila, KI=Orange, Automation=Grün, Cloud=Türkis, Spielerei=Pink). Bezier-Kurven verbinden die Skills entlang ihres Pfades.
+- **Skill-Knoten**: abgerundete Rechtecke mit Icon + Name. Optisch identisch — Zugehörigkeit zum Pfad zeigt nur die Bahn-Farbe.
+- **Cross-Pfad-Skills** (z.B. „Tägliches Briefing" braucht Wetter + Reminder + LLM-Chat): kleine zusätzliche Linien zwischen den Pfaden zeigen die Voraussetzungen.
 - Status-Farben:
   - **Grün** — abgeschlossen / aktiv
   - **Blau** — gerade in Bearbeitung (Lesson läuft)
   - **Standard** — verfügbar (alle Voraussetzungen erfüllt)
   - **Grau/Locked** — gesperrt (Voraussetzung fehlt oder Key fehlt)
 - Hover/Tap zeigt einen feinen Glow
+- **Mobile**: Pfade vertikal gestapelt, jeder Pfad horizontal scrollbar als eigener Streifen. Hub am Anfang.
 
 **Interaktion:**
 - Klick auf Knoten → Detail-Modal mit:
@@ -84,31 +95,93 @@ Keine zusätzliche Infrastruktur, keine neue npm-Dependency wenn vermeidbar.
   - Zwei Buttons: „← Zurück" + „Skill erlernen →" (oder „Voraussetzungen freischalten" wenn gesperrt)
 - Mobile: Tree horizontal scrollbar, Detail-Modal als Full-Screen
 
-**Skill-Inhalte v1** (geseedet, nicht im Code hartkodiert — Inhalts-Tabelle in DB):
+**Skill-Inhalte v1** (geseedet via Migration, nicht im Code hartkodiert):
 
-| Tier | Skill-ID | Icon | Name | Typ | Voraussetzung | Token-Kosten |
-|---|---|---|---|---|---|---|
-| 1 | api_keys | 🔑 | API-Keys verwalten | config | — | 0 |
-| 1 | telegram | 🤖 | Telegram-Bot verbinden | config | — | 0 |
-| 1 | weather | 🌤️ | Wetter | script | — | 0 |
-| 1 | web_search | 🔍 | Web-Suche | script | — | 0 |
-| 1 | reminder | ⏰ | Erinnerungen | script | telegram | 0 |
-| 1 | notes | 📝 | Notizen & Listen | script | — | 0 |
-| 2 | llm_chat | 💬 | LLM-Chat | llm | api_keys | 200-800 |
-| 2 | rag | 📚 | Eigenes Gedächtnis (RAG) | llm | notes, llm_chat | +50-200 |
-| 2 | recipe | 🍳 | Rezept-Berater | llm | llm_chat | 300-500 |
-| 2 | gdrive | 📂 | Google Drive anbinden | config | api_keys | 0 |
-| 2 | github_storage | 🐙 | GitHub-Repo als Gedächtnis | config | — | 0 |
-| 2 | image_gen | 🎨 | Bild-Generation | script | api_keys | 0 + Bilder-Quota |
-| 2 | whisper | 🗣️ | Sprache → Text | script | api_keys | 0 + STT-Quota |
-| 2 | quota_view | 📊 | Limit-Sicht (Free-Tier-Status) | script | api_keys | 0 |
-| 3 | briefing | 📰 | Tägliches Briefing | workflow | weather, reminder, llm_chat | 800-1500 |
-| 3 | second_brain | 🧠 | Zweites Gehirn | workflow | rag, notes | 100/Eintrag |
-| 3 | quantized_local | ⚡ | Lokales Mini-Modell | script | api_keys | 0 (Server) |
-| 3 | email_send | 📧 | Email-Versand | script | api_keys | 0 |
-| 3 | translator | 🌐 | Übersetzer | llm | llm_chat | 50-200 |
+**🌟 Hub** (Pflicht für die meisten Pfade)
+| Skill-ID | Icon | Name | Typ | Voraussetzung | Token-Kosten |
+|---|---|---|---|---|---|
+| api_keys | 🔑 | API-Keys verwalten | config | — | 0 |
+| telegram | 🤖 | Telegram-Bot verbinden | config | — | 0 |
 
-**MVP** beschränkt sich auf Tier 1 komplett + 2-3 Tier-2-Skills. Tier 3 später.
+**🌐 Pfad: Daten aus dem Netz** (zero-token, free-API, kein Setup)
+| Skill-ID | Icon | Name | Typ | Voraussetzung |
+|---|---|---|---|---|
+| weather | 🌤️ | Wetter | script | telegram |
+| web_search | 🔍 | Web-Suche | script | telegram |
+| wikipedia | 📖 | Wikipedia-Lookup | script | telegram |
+| currency | 💱 | Wechselkurse | script | telegram |
+| countries | 🌍 | Länder-Info | script | telegram |
+| crypto | 🪙 | Krypto-Preise | script | telegram |
+| rss | 📰 | RSS-Reader | script | telegram |
+
+**🛡️ Pfad: Sicherheit & Privatsphäre** (zero-token, Lehrwert hoch)
+| Skill-ID | Icon | Name | Typ | Voraussetzung |
+|---|---|---|---|---|
+| hash_tools | 🆔 | Hash & UUID | script | telegram |
+| password_gen | 🔐 | Passwort-Generator | script | telegram |
+| leak_check | 🚨 | Passwort-Leak-Check | script | telegram |
+| url_check | 🔒 | URL-Sicherheits-Check | script | telegram |
+| jwt_decode | 📜 | JWT-Decoder | script | telegram |
+
+**🧠 Pfad: Mich selbst verstehen** (User-Storage, zero-server-cost)
+| Skill-ID | Icon | Name | Typ | Voraussetzung |
+|---|---|---|---|---|
+| notes | 📝 | Notizen & Listen | script | telegram |
+| mood | 😊 | Stimmungs-Tracker | script | telegram |
+| habits | 💪 | Gewohnheits-Tracker | script | telegram |
+| reading_log | 📖 | Lese-Tagebuch | script | telegram |
+| birthdays | 🎂 | Geburtstags-Reminder | script | reminder |
+| maintenance | 🚗 | Wartungs-Tagebuch | script | reminder |
+
+**🤖 Pfad: Sprachmodelle** (LLM-basiert, Token-relevant)
+| Skill-ID | Icon | Name | Typ | Voraussetzung | Token-Kosten |
+|---|---|---|---|---|---|
+| llm_chat | 💬 | LLM-Chat | llm | api_keys | 200-800 |
+| recipe | 🍳 | Rezept-Berater | llm | llm_chat | 300-500 |
+| rag | 📚 | RAG-Gedächtnis | llm | notes, llm_chat | +50-200 |
+| translator | 🌐 | Übersetzer | llm | llm_chat | 50-200 |
+| image_gen | 🎨 | Bild-Generation | script | api_keys | 0 + Bilder-Quota |
+| whisper | 🗣️ | Sprache → Text | script | api_keys | 0 + STT-Quota |
+| quantized_local | ⚡ | Mini-Modell lokal | script | api_keys | 0 |
+
+**⏰ Pfad: Automation & Routinen**
+| Skill-ID | Icon | Name | Typ | Voraussetzung |
+|---|---|---|---|---|
+| reminder | ⏰ | Erinnerungen | script | telegram |
+| water_reminder | 💧 | Trink-Erinnerung | script | reminder |
+| pomodoro | 🍅 | Pomodoro-Timer | script | reminder |
+| briefing | 📰 | Tägliches Briefing | workflow | weather, reminder, llm_chat |
+| second_brain | 🧠 | Zweites Gehirn | workflow | rag, notes |
+
+**☁️ Pfad: Eigene Cloud** (User-eigener Speicher)
+| Skill-ID | Icon | Name | Typ | Voraussetzung |
+|---|---|---|---|---|
+| gdrive | 📂 | Google Drive anbinden | config | api_keys |
+| github_storage | 🐙 | GitHub-Repo als Gedächtnis | config | — |
+| onedrive | 🔵 | OneDrive anbinden | config | api_keys |
+| quota_view | 📊 | Limit-Sicht | script | api_keys |
+
+**🎁 Pfad: Werkzeuge & Spielerei** (sofortige Erfolgserlebnisse)
+| Skill-ID | Icon | Name | Typ | Voraussetzung |
+|---|---|---|---|---|
+| qr_code | 📷 | QR-Code Generator | script | — |
+| dice | 🎲 | Würfel / Münze / Picker | script | — |
+| math_practice | 🧮 | Mathe-Übungen | script | — |
+| flashcards | 🃏 | Vokabel-Karten (Spaced Repetition) | script | — |
+| joke_quote | 😄 | Witz / Zitat des Tages | script | — |
+| nasa_apod | 🪐 | NASA-Bild des Tages | script | — |
+
+**Total: 42 Skills im Voll-Ausbau, ~20 im MVP.**
+
+**MVP (Phase 1) — was reingeht:**
+- 🌟 Hub: api_keys, telegram (2)
+- 🌐 Daten: weather, web_search, wikipedia, currency, countries, rss (6)
+- 🛡️ Sicherheit: hash_tools, password_gen, leak_check (3)
+- 🧠 Tracking: notes, mood, habits (3)
+- ⏰ Automation: reminder, pomodoro (2)
+- 🎁 Spielerei: qr_code, dice, math_practice, joke_quote (4)
+
+= **20 Skills** in Phase 1. Sprachmodell-Pfad, Cloud-Pfad und Workflow-Skills folgen in Phase 2-4.
 
 ### Subsystem 2 — Lesson-Flow (3 Karten)
 
@@ -285,7 +358,7 @@ CREATE TABLE skills (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   icon TEXT NOT NULL,
-  tier INT NOT NULL CHECK (tier BETWEEN 1 AND 3),
+  path TEXT NOT NULL CHECK (path IN ('hub','daten','sicherheit','tracking','llm','automation','cloud','spielerei')),
   skill_type TEXT NOT NULL CHECK (skill_type IN ('script','llm','workflow','config')),
   description TEXT NOT NULL,
   how_it_works TEXT NOT NULL,        -- mit eingebetteten <span class="term">…</span>
@@ -294,6 +367,7 @@ CREATE TABLE skills (
   required_keys JSONB NOT NULL DEFAULT '[]'::jsonb, -- z.B. ["llm_api_key"]
   display_x INT NOT NULL,
   display_y INT NOT NULL,
+  display_order INT NOT NULL DEFAULT 0,  -- innerhalb des Pfades
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -400,33 +474,36 @@ Im Code: zentrale `botMessages.js` oder eine `i18n`-ähnliche Konstanten-Datei, 
 
 ## Implementierungs-Phasen
 
-**Phase 1 — Fundament (MVP)**
+**Phase 1 — Fundament (MVP, 20 Skills)**
+- Alten Code löschen gemäß Lösch-Plan
 - DB-Schema neu (Migration `100_platform_base.sql`)
-- Skill-Katalog seeden mit Tier 1 (6 Skills)
-- Glossar seeden mit ~25 Begriffen
-- Route `/tech-tree` mit Tech-Tree-Komponente (SVG-Rendering)
+- Skill-Katalog seeden: Hub + Daten + Sicherheit (Basic) + Tracking (Basic) + Automation (Reminder/Pomodoro) + Spielerei (4 Skills)
+- Glossar seeden mit ~28 Begriffen
+- Route `/tech-tree` mit SVG-Rendering der 7 Pfade
 - Lesson-Flow-Page `/lesson/:skillId` mit 3 Karten
 - Mini-Wiki-Tooltip-Komponente
-- Skill-Engine-Skelett: 2-3 Skript-Skills funktionstüchtig (Wetter, Web-Suche, Notizen)
+- Skill-Engine-Skelett: alle 20 Skills funktionstüchtig (überwiegend Skript)
 - Key-Setup-Seite `/keys`
-- Telegram-Webhook angepasst für Lesson-Verifikation
-- Lösch-Aktion aller Altlasten
+- Telegram-Webhook angepasst für Lesson-Verifikation + Skill-Dispatch
+- Reminder-Cron-Worker
 
-**Phase 2 — LLM-Schicht**
-- LLM-Chat-Skill
-- RAG-Skill
-- Rezept-Berater
-- Übersetzer
+**Phase 2 — Sprachmodell-Pfad**
+- 🤖 LLM-Chat, Recipe, RAG, Translator
+- image_gen, whisper als Brücke zum Spielerisch-Nutzbaren
+- Workflow-Engine vorbereitet (für briefing/second_brain in Phase 4)
 
-**Phase 3 — Cloud-Speicher-Anbindungen**
-- Google Drive OAuth + Storage-Adapter
-- GitHub-Repo-Storage-Adapter
-- OneDrive folgt später
+**Phase 3 — Eigene Cloud**
+- 📂 Google Drive OAuth + Storage-Adapter
+- 🐙 GitHub-Repo-Storage-Adapter
+- 📊 quota_view aktivieren (zeigt nun Cloud-Limits mit an)
+- OneDrive folgt nach Bedarf
 
-**Phase 4 — Workflows**
-- Tägliches Briefing
-- Zweites Gehirn
-- Mini-Modell-im-Browser (Phi-3 via WebLLM)
+**Phase 4 — Workflows + Lokal-Modell**
+- 📰 Tägliches Briefing
+- 🧠 Zweites Gehirn
+- ⚡ Mini-Modell im Browser via WebLLM (Phi-3-mini quantisiert)
+- 📧 Email-Versand
+- Erweiterte Tracking-Skills (reading_log, birthdays, maintenance)
 
 Jede Phase ist eigener Plan + Implementierungs-Zyklus.
 
