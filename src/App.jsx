@@ -3,6 +3,7 @@ import { AuthProvider } from './contexts/AuthContext'
 import Starfield from './components/Starfield'
 import Navigation from './components/Navigation'
 import Footer from './components/Footer'
+import OnboardingBanner from './components/OnboardingBanner'
 import Home from './pages/Home'
 import Knowledge from './pages/Knowledge'
 import Login from './pages/Login'
@@ -20,6 +21,7 @@ export default function App() {
     <AuthProvider>
       {!isHome && <Starfield />}
       <Navigation />
+      <OnboardingBanner />
       <main className="min-h-screen">
         <Routes>
           <Route path="/" element={<Home />} />
