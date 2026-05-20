@@ -12,6 +12,8 @@ import TechTree from './pages/TechTree'
 import Lesson from './pages/Lesson'
 import Keys from './pages/Keys'
 import Provider from './pages/Provider'
+import Data from './pages/Data'
+import AuthCloudCallback from './pages/AuthCloudCallback'
 
 export default function App() {
   const location = useLocation()
@@ -31,7 +33,9 @@ export default function App() {
           <Route path="/keys" element={<Keys />} />
           <Route path="/provider" element={<Provider />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/data" element={<Data />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
+          <Route path="/auth/cloud-callback" element={<AuthCloudCallback />} />
         </Routes>
       </main>
       <Footer />
