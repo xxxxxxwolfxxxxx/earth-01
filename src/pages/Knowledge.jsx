@@ -193,7 +193,9 @@ const TOPICS = [
       'Sprachmodelle haben ein Problem: Sie wissen nicht was nach ihrem Training passiert ist. GPT-4 kennt keine News von gestern. Und sie haben ein Kontextfenster — du kannst ihnen nicht einfach 1000 Seiten Firmenwissen mitgeben.',
       'Die Lösung heißt <strong>RAG</strong> (Retrieval Augmented Generation). Idee: Du hast eine Wissensbasis (deine Notizen zum Beispiel). Bei einer Frage suchst du <em>nur die passenden Snippets</em> raus und gibst sie dem Modell als Kontext. Das Modell antwortet anhand der mitgelieferten Snippets — frisch, präzise, ohne Halluzinationen.',
       'Wie findet man „passende Snippets"? Mit <strong>Embeddings</strong>. Ein Embedding ist ein Text als Liste von Zahlen — sodass ähnliche Texte ähnliche Zahlen haben. „Hund" und „Hündchen" liegen nah beieinander, „Hund" und „Atomreaktor" weit auseinander. Mit Vektor-Mathematik findest du in Millisekunden die ähnlichsten Texte.',
-      'In Phase 2 von Earth 0.1 bauen wir genau das: Deine Notizen werden eingebettet, der Bot beantwortet Fragen anhand deiner eigenen Daten. Privat. Lokal. Token-sparsam.',
+      'Bei Earth 0.1 nutzen wir <code>multilingual-e5-small</code> von Hugging Face: 384 Dimensionen, mehrsprachig, gratis. Die Vektoren landen in <code>pgvector</code> in unserer Postgres-DB. Bei einer Frage embedde ich die Frage, suche per Cosine-Similarity die ähnlichsten 5 Notizen, und gebe sie dem Sprachmodell als Kontext.',
+      '<strong>Wichtig:</strong> Klartext deiner Notizen liegt nicht bei uns — sondern auf deinem Google Drive oder GitHub Gist. Wir wissen nur die Embeddings (Lossy-Transformation, nicht lesbar). So bist du privat und wir bleiben schnell.',
+      'Du steuerst auf <code>/data</code> welche Quellen indiziert werden (nur Notizen, oder auch Stimmungen, Gewohnheiten, Gespräche, Dateien). „/frag &lt;Frage&gt;" durchsucht explizit, „Auto-Erinnerung" lässt den Bot bei Freitext selbst nachschauen.',
     ],
   },
   {

@@ -524,6 +524,51 @@ function ConfigTaskCard({ skill, keys, onComplete }) {
       target: null,
       cta: null,
     },
+    gdrive_connect: {
+      done: keys.cloud_provider === 'gdrive',
+      title: 'Google Drive verknüpfen',
+      steps: [
+        'Geh auf /data',
+        'Klick „Google Drive"',
+        'OAuth-Dialog erscheint, akzeptier den Drive-File-Scope',
+        'Du landest zurück bei uns, Cloud ist verbunden',
+      ],
+      target: '/data',
+      cta: 'Zur Daten-Seite',
+    },
+    gist_connect: {
+      done: keys.cloud_provider === 'gist',
+      title: 'GitHub Gist verknüpfen',
+      steps: [
+        'github.com/settings/tokens → „Generate new token (classic)"',
+        'Scope „gist" auswählen, Token erstellen',
+        'Auf /data Token einfügen, „Gist anlegen" klicken',
+        'Wir legen einen privaten Gist als Notiz-Container an',
+      ],
+      target: '/data',
+      cta: 'Gist verbinden',
+    },
+    embed_setup: {
+      done: !!keys.huggingface_key && !!keys.cloud_provider,
+      title: 'Embeddings aktivieren',
+      steps: [
+        'Hugging-Face-Key auf /keys hinterlegen (gratis bei huggingface.co/settings/tokens)',
+        'Cloud verbinden (Drive oder Gist) auf /data',
+        'Neue Notizen werden ab sofort automatisch embedded',
+      ],
+      target: '/keys',
+      cta: 'Zur Schlüssel-Zentrale',
+    },
+    file_upload: {
+      done: false,
+      title: 'Datei hochladen (Phase-2.5)',
+      steps: [
+        'Cloud verbunden + Embeddings aktiv?',
+        'Auf /data einen Upload-Button anklicken (kommt in der nächsten Iteration)',
+      ],
+      target: '/data',
+      cta: null,
+    },
   }
   const hint = setupHints[skill.id]
 
