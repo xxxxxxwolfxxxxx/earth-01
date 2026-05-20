@@ -84,7 +84,7 @@ export default function TechTree() {
       </div>
 
       <div className="bg-gradient-to-b from-cosmos-900 to-cosmos-800 rounded-2xl border border-white/10 p-4 overflow-x-auto">
-        <svg viewBox="0 0 1100 720" className="w-full min-w-[1000px] h-[720px]" style={{ display: 'block' }}>
+        <svg viewBox="0 0 1250 680" className="w-full min-w-[1200px] h-[680px]" style={{ display: 'block' }}>
           {/* Pfad-Bahnen */}
           {paths.map(p => {
             const sk = skillsByPath[p]
