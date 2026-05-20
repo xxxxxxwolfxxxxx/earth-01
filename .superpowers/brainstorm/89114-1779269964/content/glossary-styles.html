@@ -1,0 +1,286 @@
+<h2>Mini-Wiki — zwei Varianten direkt vergleichbar</h2>
+<p class="subtitle">Klick links auf „Token" für den Tooltip-Stil. Klick rechts auf „Token" für das Side-Panel. Welcher fühlt sich richtig an?</p>
+
+<style>
+  .compare {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    margin-top: 16px;
+  }
+  @media (max-width: 800px) { .compare { grid-template-columns: 1fr; } }
+
+  .demo-box {
+    position: relative;
+    background: #050b1f;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 12px;
+    padding: 16px;
+    min-height: 360px;
+    color: #e2e8f0;
+    overflow: hidden;
+  }
+  .demo-label {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
+    color: #a5b4fc; font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .demo-text {
+    font-size: 13px; line-height: 1.65; color: #cbd5e1;
+  }
+  .demo-text p { margin: 0 0 10px 0; }
+
+  .term {
+    text-decoration: underline dotted;
+    text-decoration-color: rgba(167,139,250,0.7);
+    text-underline-offset: 2px;
+    cursor: pointer;
+    color: #c4b5fd;
+  }
+  .term:hover { color: #ddd6fe; text-decoration-color: #a78bfa; }
+
+  /* TOOLTIP STYLE */
+  .tooltip {
+    position: absolute;
+    background: #1e293b;
+    border: 1px solid rgba(167,139,250,0.5);
+    border-radius: 10px;
+    padding: 12px;
+    width: 260px;
+    z-index: 10;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.6);
+    display: none;
+  }
+  .tooltip.active { display: block; }
+  .tooltip::before {
+    content: "";
+    position: absolute;
+    top: -6px; left: 28px;
+    width: 12px; height: 12px;
+    background: #1e293b;
+    border-left: 1px solid rgba(167,139,250,0.5);
+    border-top: 1px solid rgba(167,139,250,0.5);
+    transform: rotate(45deg);
+  }
+  .tooltip h4 {
+    margin: 0 0 6px 0;
+    color: #fff;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .tooltip h4 .badge {
+    background: rgba(167,139,250,0.18);
+    color: #c4b5fd;
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 999px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+  }
+  .tooltip p {
+    margin: 0 0 8px 0;
+    font-size: 12px;
+    line-height: 1.45;
+    color: #cbd5e1;
+  }
+  .tooltip .example {
+    background: rgba(0,0,0,0.3);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-family: ui-monospace, monospace;
+    font-size: 11px;
+    color: #fde68a;
+  }
+  .tooltip .links {
+    margin-top: 8px;
+    font-size: 11px;
+    color: #94a3b8;
+  }
+  .tooltip .links a {
+    color: #93c5fd;
+    text-decoration: none;
+    margin-right: 8px;
+  }
+
+  /* SIDE-PANEL STYLE */
+  .side-panel {
+    position: absolute;
+    top: 0; right: -100%;
+    width: 100%;
+    height: 100%;
+    background: #0f172a;
+    border-left: 1px solid rgba(255,255,255,0.15);
+    padding: 20px;
+    transition: right 0.3s;
+    overflow-y: auto;
+    z-index: 10;
+  }
+  .side-panel.active { right: 0; }
+  .side-close {
+    position: absolute;
+    top: 14px; right: 16px;
+    background: rgba(255,255,255,0.1);
+    border: none;
+    border-radius: 6px;
+    color: #cbd5e1;
+    padding: 4px 10px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .side-panel h3 {
+    margin: 0 0 4px 0;
+    color: #fff;
+    font-size: 17px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .side-panel .subtitle-tier {
+    color: #94a3b8;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 14px;
+  }
+  .side-panel h5 {
+    color: #93c5fd;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin: 14px 0 5px 0;
+  }
+  .side-panel p {
+    margin: 0 0 8px 0;
+    color: #cbd5e1;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+  .side-panel .example-box {
+    background: rgba(0,0,0,0.3);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    color: #fde68a;
+    margin-bottom: 8px;
+  }
+  .side-panel .related {
+    display: flex; flex-wrap: wrap; gap: 6px;
+  }
+  .side-panel .related a {
+    background: rgba(99,102,241,0.15);
+    border: 1px solid rgba(99,102,241,0.3);
+    color: #a5b4fc;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    text-decoration: none;
+  }
+</style>
+
+<div class="compare">
+
+  <!-- LINKS: Tooltip -->
+  <div class="demo-box" id="box-a">
+    <div class="demo-label">A — Tooltip am Klick-Ort</div>
+    <div class="demo-text">
+      <p>Wenn dein Bot eine Antwort generiert, verbraucht er <span class="term" onclick="showTooltip(event,'a')">Tokens</span>. Ein <span class="term" onclick="showTooltip(event,'a')">Kontext-Fenster</span> begrenzt wie viel er zur gleichen Zeit „im Kopf" hat.</p>
+      <p>Damit er sich an früher erinnert nutzen wir <span class="term" onclick="showTooltip(event,'a')">RAG</span> — eine Methode dem Modell nur relevante Erinnerungen mitzugeben statt alles.</p>
+      <p style="font-size:11px; color:#94a3b8; margin-top:14px">Klick auf eines der violetten Wörter.</p>
+    </div>
+    <div class="tooltip" id="tooltip">
+      <h4>🪙 Token <span class="badge">Lehrbegriff</span></h4>
+      <p>Ein Token ist die kleinste Texteinheit für ein Sprachmodell — meist 3-4 Buchstaben oder ein häufiges Wort. „Hallo" = 1 Token, „außergewöhnlich" = 3-4.</p>
+      <div class="example">200 Tokens ≈ 150 Wörter</div>
+      <div class="links">Verwandt: <a href="#">Kontext-Fenster</a><a href="#">Embedding</a></div>
+    </div>
+  </div>
+
+  <!-- RECHTS: Side-Panel -->
+  <div class="demo-box" id="box-b">
+    <div class="demo-label">B — Side-Panel von rechts</div>
+    <div class="demo-text">
+      <p>Wenn dein Bot eine Antwort generiert, verbraucht er <span class="term" onclick="showSide()">Tokens</span>. Ein <span class="term" onclick="showSide()">Kontext-Fenster</span> begrenzt wie viel er zur gleichen Zeit „im Kopf" hat.</p>
+      <p>Damit er sich an früher erinnert nutzen wir <span class="term" onclick="showSide()">RAG</span> — eine Methode dem Modell nur relevante Erinnerungen mitzugeben statt alles.</p>
+      <p style="font-size:11px; color:#94a3b8; margin-top:14px">Klick auf eines der violetten Wörter.</p>
+    </div>
+    <div class="side-panel" id="side">
+      <button class="side-close" onclick="document.getElementById('side').classList.remove('active')">✕</button>
+      <h3>🪙 Token</h3>
+      <div class="subtitle-tier">Lehrbegriff · Sprachmodelle-Basics</div>
+
+      <h5>Was es ist</h5>
+      <p>Ein Token ist die kleinste Texteinheit für ein Sprachmodell. Meist 3-4 Buchstaben oder ein häufiges Wort. Modelle „denken" nicht in Buchstaben oder Wörtern — sondern in Tokens.</p>
+
+      <h5>Beispiel</h5>
+      <div class="example-box">
+        „Hallo" → 1 Token<br>
+        „außergewöhnlich" → 3 Tokens<br>
+        „Berlin ist schön" → 4 Tokens<br>
+        <br>
+        Faustregel: 200 Tokens ≈ 150 Wörter
+      </div>
+
+      <h5>Warum dich das interessiert</h5>
+      <p>Jeder API-Aufruf an ein Sprachmodell kostet Tokens. Free-Tiers haben Monats-Limits in Tokens. Wer effizient prompted, kommt weiter. Wer's übertreibt, ist nach Wochen-Mitte trocken.</p>
+
+      <h5>Verwandte Begriffe</h5>
+      <div class="related">
+        <a href="#">Kontext-Fenster</a>
+        <a href="#">Embedding</a>
+        <a href="#">Prompt-Engineering</a>
+        <a href="#">Quantisierung</a>
+      </div>
+
+      <h5>Mehr lernen</h5>
+      <p style="font-size:11px;">Skill „LLM-Chat" → da übst du Token-Effizienz in der Praxis.</p>
+    </div>
+  </div>
+
+</div>
+
+<script>
+function showTooltip(e, side) {
+  const tip = document.getElementById('tooltip');
+  const box = document.getElementById('box-' + side);
+  const rect = e.target.getBoundingClientRect();
+  const boxRect = box.getBoundingClientRect();
+  tip.style.left = (rect.left - boxRect.left) + "px";
+  tip.style.top = (rect.bottom - boxRect.top + 8) + "px";
+  tip.classList.add('active');
+}
+function showSide() {
+  document.getElementById('side').classList.add('active');
+}
+document.addEventListener('click', (e) => {
+  if (!e.target.classList.contains('term')) {
+    document.getElementById('tooltip')?.classList.remove('active');
+  }
+});
+</script>
+
+<h3 style="color:#fff; margin-top: 22px; font-size: 14px;">📊 Wann welcher Stil?</h3>
+
+<div style="background: rgba(99,102,241,0.08); border:1px solid rgba(99,102,241,0.3); border-radius:10px; padding: 14px; font-size: 13px; line-height: 1.6; color: #cbd5e1;">
+  <strong>Tooltip (A)</strong> — gut für „kurz nachschlagen, weiterlesen". 2-3 Sätze + Beispiel. Niedrigste Unterbrechung. Mobile: könnte am unteren Rand statt absoluter Position erscheinen.<br><br>
+  <strong>Side-Panel (B)</strong> — gut für „in einen Begriff eintauchen". Mit Beispielen, verwandten Begriffen, „Mehr lernen"-Verweis auf passenden Skill. Auf dem Handy als Full-Screen-Overlay.<br><br>
+  <strong>Mein Vorschlag: Beide.</strong> Tooltip ist Default beim Klick. Im Tooltip ein „Mehr →"-Link der das Side-Panel öffnet. So bekommt jeder seinen Tiefen-Grad.
+</div>
+
+<div class="options" style="margin-top: 18px">
+  <div class="option" data-choice="both" onclick="toggleSelect(this)">
+    <div class="letter">A+B</div>
+    <div class="content"><h3>Beides kombiniert</h3><p>Tooltip zuerst, mit Link zum Side-Panel für Tiefe.</p></div>
+  </div>
+  <div class="option" data-choice="tooltip" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content"><h3>Nur Tooltip</h3><p>Schneller, schlanker. MVP-tauglich.</p></div>
+  </div>
+  <div class="option" data-choice="side" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content"><h3>Nur Side-Panel</h3><p>Mehr Lehr-Wirkung pro Begriff.</p></div>
+  </div>
+</div>

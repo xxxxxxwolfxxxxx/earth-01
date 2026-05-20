@@ -1,0 +1,294 @@
+<h2>Tech-Tree als horizontaler Verzeichnisbaum</h2>
+<p class="subtitle">Wurzel links, Skills wachsen nach rechts. Linien zeigen Voraussetzungen. Klick auf einen Skill öffnet das Detail-Fenster.</p>
+
+<style>
+  .tree-canvas {
+    background: linear-gradient(180deg, #050b1f 0%, #0a1525 100%);
+    border-radius: 12px;
+    padding: 20px;
+    height: 480px;
+    position: relative;
+    overflow: auto;
+    color: #e2e8f0;
+  }
+
+  .tree-grid {
+    position: relative;
+    min-width: 1000px;
+    height: 100%;
+  }
+
+  .node {
+    position: absolute;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 8px;
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 140px;
+    user-select: none;
+  }
+  .node:hover {
+    background: rgba(99,102,241,0.18);
+    border-color: rgba(99,102,241,0.5);
+    transform: translateX(2px);
+  }
+  .node.done { background: rgba(74,222,128,0.12); border-color: rgba(74,222,128,0.4); }
+  .node.open { background: rgba(96,165,250,0.12); border-color: rgba(96,165,250,0.5); }
+  .node.locked { opacity: 0.45; }
+  .node.root {
+    background: rgba(167,139,250,0.18);
+    border-color: rgba(167,139,250,0.5);
+    font-weight: 700;
+  }
+  .node .icon { font-size: 16px; line-height: 1; }
+  .node .label { font-size: 12px; color: #fff; }
+
+  svg.lines {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .node { z-index: 1; }
+
+  /* Detail-Panel (Modal-Overlay) */
+  .detail-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(5,11,31,0.85);
+    backdrop-filter: blur(4px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    padding: 24px;
+  }
+  .detail-overlay.active { display: flex; }
+  .detail-card {
+    background: #0f172a;
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 12px;
+    padding: 22px;
+    max-width: 520px;
+    width: 100%;
+    color: #e2e8f0;
+  }
+  .detail-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .detail-icon { font-size: 32px; }
+  .detail-title { font-size: 17px; font-weight: 700; color: #fff; }
+  .detail-section { margin-bottom: 12px; }
+  .detail-section h4 {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
+    color: #94a3b8; margin: 0 0 4px 0;
+  }
+  .detail-section p { margin: 0; font-size: 13px; line-height: 1.5; color: #cbd5e1; }
+  .token-bar {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(245,158,11,0.1);
+    border: 1px solid rgba(245,158,11,0.3);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+  .token-bar.zero { background: rgba(74,222,128,0.1); border-color: rgba(74,222,128,0.3); }
+  .actions { display: flex; gap: 8px; margin-top: 16px; }
+  .btn {
+    flex: 1;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+  }
+  .btn.primary { background: #6366f1; color: white; }
+  .btn.primary:hover { background: #5558e3; }
+  .btn.ghost { background: rgba(255,255,255,0.08); color: #cbd5e1; }
+  .term {
+    text-decoration: underline dotted;
+    text-decoration-color: rgba(167,139,250,0.6);
+    cursor: help;
+    color: #c4b5fd;
+  }
+</style>
+
+<div class="tree-canvas" id="canvas">
+  <div class="tree-grid">
+    <svg class="lines" viewBox="0 0 1000 460" preserveAspectRatio="none">
+      <!-- root → tier1 -->
+      <path d="M 90 230 L 200 60" stroke="rgba(167,139,250,0.4)" stroke-width="1.5" fill="none"/>
+      <path d="M 90 230 L 200 120" stroke="rgba(167,139,250,0.4)" stroke-width="1.5" fill="none"/>
+      <path d="M 90 230 L 200 180" stroke="rgba(167,139,250,0.4)" stroke-width="1.5" fill="none"/>
+      <path d="M 90 230 L 200 240" stroke="rgba(167,139,250,0.4)" stroke-width="1.5" fill="none"/>
+      <path d="M 90 230 L 200 300" stroke="rgba(167,139,250,0.4)" stroke-width="1.5" fill="none"/>
+      <path d="M 90 230 L 200 360" stroke="rgba(167,139,250,0.4)" stroke-width="1.5" fill="none"/>
+      <!-- tier1 → tier2 -->
+      <path d="M 360 60 L 480 60" stroke="rgba(96,165,250,0.4)" stroke-width="1.5" fill="none"/>
+      <path d="M 360 120 L 480 120" stroke="rgba(96,165,250,0.4)" stroke-width="1.5" fill="none"/>
+      <path d="M 360 120 L 480 180" stroke="rgba(96,165,250,0.4)" stroke-width="1.5" fill="none"/>
+      <path d="M 360 300 L 480 300" stroke="rgba(96,165,250,0.4)" stroke-width="1.5" fill="none"/>
+      <!-- tier2 → tier3 -->
+      <path d="M 640 60 L 760 60" stroke="rgba(245,158,11,0.4)" stroke-width="1.5" fill="none"/>
+      <path d="M 640 120 L 760 120" stroke="rgba(245,158,11,0.4)" stroke-width="1.5" fill="none"/>
+      <path d="M 640 180 L 760 60" stroke="rgba(245,158,11,0.4)" stroke-width="1.5" fill="none"/>
+      <path d="M 640 300 L 760 240" stroke="rgba(245,158,11,0.4)" stroke-width="1.5" fill="none"/>
+    </svg>
+
+    <!-- ROOT -->
+    <div class="node root" style="left: 10px; top: 215px;">
+      <span class="icon">🧬</span><span class="label">Mein Agent</span>
+    </div>
+
+    <!-- TIER 1 -->
+    <div class="node done" style="left: 200px; top: 40px;" onclick="openDetail('api')"><span class="icon">🔑</span><span class="label">API-Keys</span></div>
+    <div class="node done" style="left: 200px; top: 100px;" onclick="openDetail('tg')"><span class="icon">🤖</span><span class="label">Telegram-Bot</span></div>
+    <div class="node done" style="left: 200px; top: 160px;" onclick="openDetail('weather')"><span class="icon">🌤️</span><span class="label">Wetter</span></div>
+    <div class="node done" style="left: 200px; top: 220px;" onclick="openDetail('search')"><span class="icon">🔍</span><span class="label">Web-Suche</span></div>
+    <div class="node open" style="left: 200px; top: 280px;" onclick="openDetail('reminder')"><span class="icon">⏰</span><span class="label">Erinnerungen</span></div>
+    <div class="node" style="left: 200px; top: 340px;" onclick="openDetail('notes')"><span class="icon">📝</span><span class="label">Notizen</span></div>
+
+    <!-- TIER 2 -->
+    <div class="node" style="left: 480px; top: 40px;" onclick="openDetail('llm-chat')"><span class="icon">💬</span><span class="label">LLM-Chat</span></div>
+    <div class="node" style="left: 480px; top: 100px;" onclick="openDetail('rag')"><span class="icon">📚</span><span class="label">Gedächtnis (RAG)</span></div>
+    <div class="node" style="left: 480px; top: 160px;" onclick="openDetail('recipe')"><span class="icon">🍳</span><span class="label">Rezept-Berater</span></div>
+    <div class="node locked" style="left: 480px; top: 220px;" onclick="openDetail('image')"><span class="icon">🎨</span><span class="label">Bild-Generation</span></div>
+    <div class="node locked" style="left: 480px; top: 280px;" onclick="openDetail('whisper')"><span class="icon">🗣️</span><span class="label">Sprache → Text</span></div>
+
+    <!-- TIER 3 -->
+    <div class="node locked" style="left: 760px; top: 40px;" onclick="openDetail('briefing')"><span class="icon">📰</span><span class="label">Tägl. Briefing</span></div>
+    <div class="node locked" style="left: 760px; top: 100px;" onclick="openDetail('brain')"><span class="icon">🧠</span><span class="label">Zweites Gehirn</span></div>
+    <div class="node locked" style="left: 760px; top: 220px;" onclick="openDetail('quantized')"><span class="icon">⚡</span><span class="label">Mini-Modell (Quant.)</span></div>
+  </div>
+
+  <!-- Detail-Modal Overlay (Beispiel: Wetter) -->
+  <div class="detail-overlay" id="overlay">
+    <div class="detail-card">
+      <div class="detail-head">
+        <div class="detail-icon" id="d-icon">🌤️</div>
+        <div>
+          <div class="detail-title" id="d-title">Wetter (Open-Meteo)</div>
+          <div style="font-size: 11px; color: #94a3b8;">Tier 1 · Skript-Skill · ✓ Aktiv</div>
+        </div>
+      </div>
+
+      <div class="detail-section">
+        <h4>Beschreibung</h4>
+        <p id="d-desc">Du fragst deinen Agenten nach dem Wetter in einer Stadt — er antwortet mit aktueller Temperatur, Wind und Wettercode für die angefragte Region.</p>
+      </div>
+
+      <div class="detail-section">
+        <h4>Was passiert technisch</h4>
+        <p id="d-tech">Skript fragt zwei <span class="term">REST-APIs</span> ab: zuerst <span class="term">Open-Meteo Geocoding</span> übersetzt den Ortsnamen in Koordinaten, dann liefert das Forecast-Endpoint die aktuellen Werte. Beides ist kostenlos und braucht keinen API-Key.</p>
+      </div>
+
+      <div class="detail-section">
+        <h4>Token-Verbrauch</h4>
+        <div class="token-bar zero" id="d-tokens">⚡ 0 Tokens — reines Skript, kein <span class="term">LLM</span> nötig.</div>
+      </div>
+
+      <div class="actions">
+        <button class="btn ghost" onclick="closeDetail()">← Zurück</button>
+        <button class="btn primary" onclick="alert('Würde zur Aufgabenbeschreibung springen')">Skill erlernen →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const SKILLS = {
+  api:       { icon: "🔑", title: "API-Keys verwalten", tier: 1, status: "✓ Abgeschlossen",
+               desc: "Du hinterlegst kostenlose Keys von Anbietern wie NVIDIA, Groq oder Hugging Face. Alle Skills greifen darauf zu.",
+               tech: "Skript speichert Keys verschlüsselt in deinem Supabase-Profil. Beim Aufruf eines Skills wird der passende Key serverseitig benutzt.",
+               tokens: { zero: true, text: "0 Tokens — reine Konfiguration" }},
+  tg:        { icon: "🤖", title: "Telegram-Bot verbinden", tier: 1, status: "✓ Abgeschlossen",
+               desc: "Du erstellst per @BotFather einen eigenen Telegram-Bot und steckst den Token rein. Danach schreibst du deinem Agenten direkt in Telegram.",
+               tech: "Anleitung mit @BotFather erzeugt einen Token. Der Token wird in deinem Profil gespeichert, ein Webhook auf Supabase Edge Function nimmt deine Nachrichten entgegen.",
+               tokens: { zero: true, text: "0 Tokens — nur Konfiguration" }},
+  weather:   { icon: "🌤️", title: "Wetter (Open-Meteo)", tier: 1, status: "✓ Aktiv",
+               desc: "Du fragst deinen Agenten nach dem Wetter in einer Stadt — er antwortet mit Temperatur, Wind und Wettercode.",
+               tech: "Skript ruft zwei REST-APIs ab: Geocoding übersetzt Ortsname in Koordinaten, Forecast liefert die Werte. Open-Meteo ist kostenlos und braucht keinen Key.",
+               tokens: { zero: true, text: "0 Tokens — reines Skript, kein LLM" }},
+  search:    { icon: "🔍", title: "Web-Suche", tier: 1, status: "✓ Aktiv",
+               desc: "Frag deinen Agenten nach Fakten oder aktuellen Informationen.",
+               tech: "Skript fragt DuckDuckGo Instant Answer API. Ergebnis wird direkt zurückgegeben, ohne LLM-Interpretation.",
+               tokens: { zero: true, text: "0 Tokens — direkter API-Call" }},
+  reminder:  { icon: "⏰", title: "Erinnerungen", tier: 1, status: "Wird gelernt",
+               desc: "Setz eine Erinnerung per Telegram: 'In 30 Min an Yoga denken'.",
+               tech: "Telegram-Nachricht wird per Regex/Skript geparst (Zahl + Einheit + Text). Eintrag in Reminder-Tabelle. pg_cron Worker checkt jede Minute fällige Einträge und schickt Telegram-Nachricht.",
+               tokens: { zero: true, text: "0 Tokens — Pattern-Match-Parser, kein LLM" }},
+  notes:     { icon: "📝", title: "Notizen / Einkaufsliste", tier: 1, status: "Verfügbar",
+               desc: "Sammle Listen: Einkauf, Tagebuch, Symptome, Projekte.",
+               tech: "Tabelle user_lists mit list_type. Befehle wie 'add Milch zu Einkaufsliste' parst ein Skript.",
+               tokens: { zero: true, text: "0 Tokens — DB-CRUD" }},
+  "llm-chat":{ icon: "💬", title: "LLM-Chat", tier: 2, status: "Verfügbar nach Tier 1",
+               desc: "Echte Unterhaltung mit deinem Agenten — er nutzt einen LLM (groß: Sprachmodell) den du als Key hinterlegst.",
+               tech: "Edge Function leitet deine Nachricht an dein LLM weiter (Groq/NVIDIA/OpenAI-kompatibel). Antwort kommt zurück.",
+               tokens: { zero: false, text: "≈ 200-800 Tokens pro Nachricht (je nach Länge)" }},
+  rag:       { icon: "📚", title: "Eigenes Gedächtnis (RAG)", tier: 2, status: "Verfügbar nach Notizen",
+               desc: "Dein Agent merkt sich Sachen über dich und nutzt sie in zukünftigen Antworten.",
+               tech: "Notizen werden mit Embeddings (Vektoren) gespeichert. Vor jeder Antwort sucht das System ähnliche Notizen und gibt sie dem LLM mit. RAG = Retrieval Augmented Generation.",
+               tokens: { zero: false, text: "≈ 50-200 zusätzliche Kontext-Tokens pro Nachricht" }},
+  recipe:    { icon: "🍳", title: "Rezept-Berater", tier: 2, status: "Verfügbar nach LLM-Chat",
+               desc: "Sag deinem Agent welche Zutaten du hast, er schlägt ein Rezept vor.",
+               tech: "Skript baut einen festen Prompt-Template mit Koch-Persona. LLM bekommt nur Zutatenliste + Anweisung. Ergebnis = strukturiertes Rezept.",
+               tokens: { zero: false, text: "≈ 300-500 Tokens (kurzer Prompt, kompakte Antwort)" }},
+  image:     { icon: "🎨", title: "Bild-Generation", tier: 2, status: "Gesperrt — Hugging-Face-Key nötig",
+               desc: "Sag deinem Agent was du sehen willst, er erzeugt ein Bild.",
+               tech: "Hugging Face Inference API mit Stable-Diffusion-Modell. Bild wird in Supabase Storage abgelegt und als URL zurückgegeben.",
+               tokens: { zero: false, text: "0 Tokens — aber API-Limit: ~30 Bilder/Tag (kostenlos)" }},
+  whisper:   { icon: "🗣️", title: "Sprache → Text", tier: 2, status: "Gesperrt — Groq-Whisper-Key nötig",
+               desc: "Schick deinem Agent eine Voice-Nachricht in Telegram, er transkribiert sie.",
+               tech: "Whisper-Modell (von OpenAI, gratis bei Groq gehostet) wandelt Audio in Text. Skript reicht das Audio durch und gibt Text zurück.",
+               tokens: { zero: false, text: "0 LLM-Tokens — aber STT-Sekunden: ~28k Min/Tag bei Groq gratis" }},
+  briefing:  { icon: "📰", title: "Tägliches Briefing", tier: 3, status: "Gesperrt — Workflow",
+               desc: "Jeden Morgen schickt dir dein Agent ein zusammengefasstes Briefing: Wetter, News, deine Erinnerungen, Kalender.",
+               tech: "pg_cron triggert jeden Morgen ein Skript das mehrere Tier-1+2-Skills orchestriert. LLM fasst die Sammlung in einem persönlichen Stil zusammen.",
+               tokens: { zero: false, text: "≈ 800-1500 Tokens pro Briefing (einmal pro Tag)" }},
+  brain:     { icon: "🧠", title: "Zweites Gehirn", tier: 3, status: "Gesperrt — Workflow",
+               desc: "Dein Agent hält automatisch ein Wissens-Tagebuch über dich, schlägt Verbindungen vor, erinnert dich an Dinge die zueinander passen.",
+               tech: "Jeder Telegram-Chat wird klassifiziert (skript) und passende Einträge in user_lists/RAG abgelegt. Wöchentliche Reflektion zieht Verbindungen.",
+               tokens: { zero: false, text: "≈ 100 Tokens pro Klassifikation + 1000 Tokens pro Wochen-Reflektion" }},
+  quantized: { icon: "⚡", title: "Mini-Modell auf Browser/Phone", tier: 3, status: "Erweitert",
+               desc: "Du nutzt ein kleines, lokal laufendes Sprachmodell — komplett ohne API-Tokens. Lädt einmal (~600 MB), läuft offline.",
+               tech: "Quantisiertes Phi-3-mini per WebLLM im Browser geladen. Inferenz läuft auf deinem Gerät (WebGPU). Lehrt: was ist Quantisierung, Latenz, Speicher-Trade-off.",
+               tokens: { zero: true, text: "0 Server-Tokens — alles lokal" }},
+};
+
+function openDetail(id) {
+  const s = SKILLS[id];
+  if (!s) return;
+  document.getElementById("d-icon").innerText = s.icon;
+  document.getElementById("d-title").innerText = s.title;
+  document.getElementById("d-desc").innerText = s.desc;
+  document.getElementById("d-tech").innerText = s.tech;
+  const tb = document.getElementById("d-tokens");
+  tb.classList.toggle("zero", !!s.tokens.zero);
+  tb.innerHTML = (s.tokens.zero ? "⚡ " : "🔥 ") + s.tokens.text;
+  document.getElementById("overlay").classList.add("active");
+}
+function closeDetail() {
+  document.getElementById("overlay").classList.remove("active");
+}
+</script>
+
+<p class="subtitle" style="margin-top:20px">
+  Klick eines der Skills oben (z.B. <strong>Wetter</strong> oder <strong>LLM-Chat</strong>) — Detail-Modal öffnet sich mit Beschreibung, Technik-Erklärung und Token-Verbrauch. „Skill erlernen" würde zur Tutorial-Seite springen. „Zurück" schließt das Fenster.
+</p>
+
+<div class="options" style="margin-top:16px">
+  <div class="option" data-choice="ok" onclick="toggleSelect(this)">
+    <div class="letter">✓</div>
+    <div class="content"><h3>Passt — horizontaler Baum, Klick öffnet Detail</h3></div>
+  </div>
+  <div class="option" data-choice="tweak" onclick="toggleSelect(this)">
+    <div class="letter">!</div>
+    <div class="content"><h3>Richtung passt, aber...</h3><p>Schreib mir was anders soll.</p></div>
+  </div>
+</div>

@@ -2,143 +2,159 @@
 
 ## Was ist das?
 
-Eine persistente Welt, in der KI-Agenten leben, arbeiten, kooperieren und evolvieren. 30x30 Hex-Grid-Karte (Civ-Style), Agenten mit Tagesrhythmus (Arbeit/Freizeit/Schlaf), Reproduktion mit Vererbung, Reputationssystem, Gesellschaftsbildung.
+Ein Lernspiel über KI, Agenten und das Internet — verpackt als Tech-Baum. User klicken sich durch
+20+ Fähigkeiten in sieben Themen-Pfaden, lernen dabei Konzepte wie Token, Cron oder RAG und
+schalten echte Werkzeuge frei, die ihr persönlicher Telegram-Bot ab sofort nutzen kann.
+
+**Vision:** „OpenClaw für alle" — Mobile-first, kostenlos auf Free-Tiers (Supabase + Netlify),
+User bringen eigene API-Keys mit. Bildung + funktionierender Agent als Belohnung.
 
 ## Tech Stack
 
 - **Frontend:** React 19 + Vite + Tailwind CSS 4
-- **Backend:** Supabase (PostgreSQL + Edge Functions + Realtime)
-- **3D:** react-globe.gl + Three.js (via objectsData, NICHT polygonsData)
+- **Backend:** Supabase (PostgreSQL + Edge Functions Deno + RLS + Realtime)
 - **Auth:** Supabase Auth (GitHub, Google, Email)
 - **Deploy:** Netlify → earth-01.netlify.app
-- **LLM:** Dual-System (Shared Gemini server-seitig + User-eigenes LLM browser-seitig)
+- **Bot:** User-eigener Telegram-Bot via @BotFather
 
 ## Supabase
 
 - Projekt-ID: `giyvmksetvberzrpvuhu`
 - URL: `https://giyvmksetvberzrpvuhu.supabase.co`
-- Tabellen: `profiles`, `world_state`, `world_tiles`, `agents`, `agent_memory`, `agent_actions`, `world_events`
-- RLS aktiv auf allen Tabellen
+- Access-Token (für CLI): in `docs/superpowers/plans/2026-05-19-phase-c-tool-universe.md`
+- DB-Tabellen aktiv:
+  - `profiles` — User + API-Keys + Telegram-Bot-Setup + is_admin
+  - `skills` — Skill-Katalog (20 MVP-Skills in 7 Pfaden)
+  - `user_skills` — Freigeschaltete Skills pro User
+  - `lesson_sessions` — Laufende/abgeschlossene Lektionen
+  - `glossary` — 28 Begriffe für Mini-Wiki
+  - `skill_usage_log` — Nutzungs-Statistik
+  - `user_data` — Notizen, Mood, Habits pro User
+  - `reminders` — Geplante Pings
+  - `platform_settings` — Singleton (Affiliate-Links etc.)
+- RLS auf allen Tabellen aktiv
+
+**Alle alten Dynastie-Tabellen (agents, world_state, world_tiles, agent_memory, etc.) sind in Migration 100 gedroppt.**
+
+## Routes
+
+| Pfad | Datei | Beschreibung |
+|------|-------|--------------|
+| `/` | `src/pages/Home.jsx` | Landing mit Earth-Animation + Starfield |
+| `/wissen` | `src/pages/Knowledge.jsx` | Konzept-Übersicht, Provider-Tabelle, Live-Glossar |
+| `/tech-tree` | `src/pages/TechTree.jsx` | SVG-Tech-Baum mit Hub + 6 Lanes, Stats, Filter, Hover-Tooltip |
+| `/lesson/:skillId` | `src/pages/Lesson.jsx` | 3-Karten-Lektion mit Browser-Demos |
+| `/keys` | `src/pages/Keys.jsx` | 13 Service-Keys + Telegram-Status-Panel |
+| `/provider` | `src/pages/Provider.jsx` | 40 Free-Tier-Anbieter + Admin-Affiliate-Editor |
+| `/login` | `src/pages/Login.jsx` | OAuth + Email-Login |
+| `/auth/callback` | `src/pages/AuthCallback.jsx` | OAuth-Redirect-Handler |
+
+## Skill-System (Kern-Architektur)
+
+Skills haben einen `verification_type` der den Lesson-Flow bestimmt:
+
+| Typ | Wie Skill freigeschaltet wird | Beispiele |
+|-----|-------------------------------|-----------|
+| `action` | User schickt passende Nachricht an Telegram-Bot, Webhook matcht Pattern | weather, web_search, notes, reminder |
+| `browser` | Inline-Demo im Browser, User muss interagieren | dice, qr_code, math_practice, hash_tools, password_gen, leak_check |
+| `konfig` | Setup-Schritt (Key eintragen, Bot anlegen) | api_keys, telegram, rss |
+
+**Skill-Registry:** `supabase/functions/_shared/skillRegistry.ts` mit Regex-Patterns für Intent-Matching.
+
+**Skill-Handlers:** `supabase/functions/_shared/skillHandlers.ts` mit 11 action-Handlern + `executeSkill`-Dispatcher.
+
+## Edge Functions
+
+| Funktion | Trigger | Zweck |
+|----------|---------|-------|
+| `telegram-webhook` | Telegram → POST | Skill-Match + Verifikation + Ausführung + Usage-Log |
+| `register-telegram` | Frontend POST | Webhook setzen / Test-Nachricht / Trennen |
+| `reminder-tick` | pg_cron (jede Minute) | Fällige Reminder versenden, Habit-Streaks prüfen |
+
+## Schlüssel-System
+
+Frontend: `src/lib/keyService.js` mit `SERVICE_CATALOG` (13 Services in 6 Kategorien).
+
+Provider-Detection: am Key-Prefix erkennt das System automatisch den Anbieter und setzt `llm_base_url`+`llm_model`:
+- `gsk_*` → Groq
+- `sk-or-*` → OpenRouter
+- `nvapi-*` → NVIDIA NIM
+- `sk-ant-*` → Anthropic
+- `sk-*` → OpenAI
+
+Profile-Spalten für Keys: `llm_api_key`, `huggingface_key`, `resend_api_key`, `whisper_key`,
+`elevenlabs_key`, `replicate_key`, `stability_key`, `openweather_key`, `deepl_key`,
+`brave_search_key`, `newsapi_key`, `pushover_token`, `pushover_user`, `telegram_bot_token`.
+
+## Affiliate-System (Admin)
+
+Plattform-Betreiber (is_admin=true) kann auf `/provider` Affiliate-URLs eintragen.
+Gespeichert in `platform_settings.value` unter key='affiliate_links' als JSONB {provider_id: url}.
+
+Aktueller Admin: User `6d2b55e3-8229-435f-9d30-4380f328c2ee` (xxxxwolfxxxx@googlemail.com).
+
+40 Anbieter im Katalog `src/lib/providerCatalog.js`, davon ~10 mit echtem Referral-Programm
+(OpenRouter, Replicate, Together, ElevenLabs, Resend, Brevo, Supabase, Netlify, Vercel, Railway).
 
 ## Deploy
 
 ```bash
 cd /Users/matthiasduhrkop/Documents/earth-01
+
+# Frontend
 npx vite build && npx netlify deploy --prod --dir=dist
+
+# DB-Migration
+SUPABASE_ACCESS_TOKEN=<token> npx supabase db push --linked --include-all
+
+# Edge Function
+SUPABASE_ACCESS_TOKEN=<token> npx supabase functions deploy <name> \
+  --project-ref giyvmksetvberzrpvuhu --no-verify-jwt
 ```
 
-## Dateistruktur
+## Branch-Strategie
 
-### Pages (`src/pages/`)
-| Datei | Route | Beschreibung |
-|-------|-------|-------------|
-| Home.jsx | / | Landing Page |
-| World.jsx | /world | Weltkarte (2D Canvas + 3D Globus) |
-| Configurator.jsx | /configurator | Agent erstellen/konfigurieren |
-| Dashboard.jsx | /dashboard | Agent-Übersicht + LLM-Config |
-| Knowledge.jsx | /knowledge | Wissensdatenbank |
-| Login.jsx | /login | Auth-Seite |
-| AuthCallback.jsx | /auth/callback | OAuth-Redirect |
+- `main` — Stabile Version
+- `tech-tree-mvp` — Aktuelle Entwicklung (Phase 1 MVP, noch nicht gemerged)
 
-### Components (`src/components/`)
-| Datei | Beschreibung |
-|-------|-------------|
-| **WorldCanvas.jsx** | 2D Hex-Grid auf HTML Canvas. Pointy-top Hexagone, Terrain-Noise, Küstenlinien-Glow, Wellen, Agent-Rendering |
-| **WorldGlobe.jsx** | 3D Globus mit react-globe.gl. Hex-Tiles als flat THREE.ShapeGeometry via objectsData. Agenten als Points mit altitude |
-| AgentConfigurator.jsx | Personality-Slider, Agent-Erstellung in DB |
-| Navigation.jsx | Top-Navigation |
-| Earth.jsx | Animierte Erde für Landing Page |
-| Starfield.jsx | Sternenhintergrund-Animation |
-| Footer.jsx | Footer |
-| LLMConfig.jsx | LLM-Provider-Konfiguration |
+## Wichtige Komponenten
 
-### Libraries (`src/lib/`)
-| Datei | Beschreibung |
-|-------|-------------|
-| **hexUtils.js** | Hex-Mathematik: hexToPixel, pixelToHex, hexCorners, hexDistance, canvasSize. Pointy-top, odd-r offset |
-| **landMask.js** | 30x30 Land/Ozean-Maske (L/o Strings), isLand(), landBaseColor(), hexNeighbors(), OCEAN_COLOR |
-| worldService.js | Supabase-Datenzugriff + Realtime-Subscriptions |
-| llmAdapters.js | LLM-Provider-Adapter (OpenAI-kompatibel, Gemini) |
-| agentBrain.js | Prompt-Templates fuer Agent-Entscheidungen |
-| supabase.js | Supabase-Client-Initialisierung |
+| Datei | Zweck |
+|-------|-------|
+| `src/components/Earth.jsx` | Animierte Erde auf Landing |
+| `src/components/Starfield.jsx` | Sternenhintergrund (auf allen Seiten außer Landing) |
+| `src/components/Navigation.jsx` | Top-Nav mit Auth-Anzeige |
+| `src/components/Footer.jsx` | Footer mit Plattform-Links |
+| `src/components/MiniWiki.jsx` | Klickbare Glossar-Tooltips (TermText-Wrapper) |
+| `src/lib/skillService.js` | Skill + Lesson + Glossary DB-Zugriff |
+| `src/lib/keyService.js` | API-Key-Verwaltung + Provider-Detection + Telegram-Action |
+| `src/lib/platformSettings.js` | Admin-Settings (Affiliate-Links) |
+| `src/lib/providerCatalog.js` | 40 Free-Tier-Anbieter |
+| `src/lib/botMessages.js` | Zentralisierte „Bot-als-Subjekt"-Strings |
 
-### Contexts (`src/contexts/`)
-| Datei | Beschreibung |
-|-------|-------------|
-| AuthContext.jsx | Auth-State + Supabase Auth |
-| WorldContext.jsx | World State + Realtime als React Context |
+## Sprachregelung
 
-### Edge Functions (`supabase/functions/`)
-| Datei | Beschreibung |
-|-------|-------------|
-| simulation-tick/ | Simulationsengine (pg_cron, jede Minute, intern 10 Ticks). Hex-Nachbarn (odd-r offset) |
-| spawn-agent/ | Agent erstellen (max 2 pro User) |
-| get-world-snapshot/ | Initialer World State |
-| suggest-action/ | Browser-LLM-Vorschlag annehmen |
+Der Bot wird konsequent als Subjekt formuliert („dein Bot kann ab sofort…", „er pingt dich
+pünktlich"), nicht als unsichtbares System („wir hören mit", „die Plattform sendet"). Strings in
+`src/lib/botMessages.js` und `supabase/functions/_shared/botMessages.ts`.
 
-## Hex-Grid-System
+## Bekannte Eigenheiten / Tipps
 
-- **Orientierung:** Pointy-top (Spitze oben, Catan-Style)
-- **Koordinaten:** Odd-r Offset (ungerade Reihen nach rechts versetzt)
-- **Grid:** 30x30, mapped auf lat 80N-80S, lng 160W-160E
-- **Nachbarn:** 6 statt 4 (hexNeighbors in landMask.js und simulation-tick)
-- **2D Canvas:** hexUtils.js fuer Pixel-Konvertierung
-- **3D Globus:** gridToGeo() in WorldGlobe.jsx fuer lat/lng-Konvertierung
+- **DB-Migration**: Nutze `--include-all` weil lokale `migration_list` leer ist (CLI-Bug).
+- **Tailwind 4 + dynamische Klassen**: Niemals `bg-${color}-500` schreiben — Tailwind sieht das
+  nicht zur Build-Zeit. Stattdessen Lookup-Map mit voller Klassen-Liste.
+- **CORS bei Live-Tests**: Manche Provider blockieren Browser-Direkt-Tests. `keyService.testKey`
+  fängt das ab und gibt „Gespeichert (CORS verhindert Live-Test)" zurück.
+- **Telegram-Webhook-Secret**: Wird beim Token-Speichern auf /keys automatisch generiert und in
+  `telegram_webhook_secret` gespeichert. URL: `${SUPABASE_URL}/functions/v1/telegram-webhook?secret=...`
+- **First-Login-Chat**: Nach Webhook-Setup muss User einmal `/start` an den Bot schicken, damit
+  `telegram_chat_id` gespeichert wird. Erst dann kann der Bot antworten.
+- **pg_cron-Limit**: Free-Tier maximal 2 Jobs. `reminder-tick` belegt einen Slot.
 
-### Wichtig fuer 3D-Globus (WorldGlobe.jsx)
+## Aktueller Stand
 
-- `polygonsData` von react-globe.gl hat bekannte Artefakte (Issue #87: Seitenflächen, Z-Fighting)
-- Loesung: `objectsData` + `THREE.ShapeGeometry` = flache Meshes ohne Seitenflächen
-- Globe-Basis: Dunkle 1x1px Canvas-Textur (#0a1e3d), nur Land-Hexe werden gerendert
-- Agenten: pointsData mit altitude 0.012 (schweben ueber Hexen)
-- Hex-Size auf Globus: 6 (nach User-Feedback von 3.5 erhoeht)
-
-## Tile-Typen
-
-| Zeichen | Typ | Farbe |
-|---------|-----|-------|
-| e | empty (Land) | Breitengrad-abhaengig (Polar→Tropen) |
-| f | food | #4ade80 |
-| w | water | #60a5fa |
-| d | danger | #f87171 |
-| b | building | #a78bfa |
-| s | shelter | #fbbf24 |
-
-## Agenten-System
-
-- Tagesrhythmus: 240 Ticks/Tag (80 Arbeit, 80 Freizeit, 80 Schlaf) — FLEXIBEL pro Agent
-- 1 Tick = 6 Sekunden real = 6 Minuten Spielzeit
-- Flexibler Rhythmus: Per-Agent Phase-Tracking (work_ticks, free_ticks, sleep_ticks pro Zyklus)
-- forced_phase: User-Interrupt setzt Agent sofort in Freizeit (via Telegram)
-- Energie 0-100, sinkt stetig, Tod bei 0 oder bei max_age
-- Reputation -1 bis 1 (sichtbar fuer andere)
-- Personality: priority, social_mode, risk_tolerance, curiosity, cooperation
-- Reproduktion: 2 Agenten nahe beieinander, Energie > 65, Personality-Crossover + Mutation
-- Wissenstransfer: Eltern vererben bis zu 3 Langzeit-Erinnerungen
-
-## Telegram-Integration
-
-- Jeder User erstellt eigenen Bot via @BotFather, Token im Profil gespeichert
-- Webhook automatisch gesetzt bei Registrierung
-- Edge Functions: register-telegram, telegram-webhook, unregister-telegram
-- Webhook-URL: `{SUPABASE_URL}/functions/v1/telegram-webhook?secret={webhook_secret}`
-- Chat-Antworten via Gemini Free API (GEMINI_API_KEY als Supabase Secret)
-- Slash-Commands (/status, /world, /memory, /sleep, /work) brauchen kein LLM
-- Nachrichten in agent_messages Tabelle (Realtime-faehig)
-- User-Nachricht setzt forced_phase='free' auf dem Agent
-- Bei 2 Agenten antwortet der mit hoechster Energie
-- Frontend: TelegramSetup.jsx im Dashboard, AgentChat.jsx fuer Chat-Verlauf
-
-## Design-Dokumente
-
-- `docs/superpowers/specs/2026-05-18-hex-grid-design.md` — Hex-Grid Design Spec
-- `docs/superpowers/plans/2026-05-18-hex-grid.md` — Hex-Grid Implementierungsplan (abgeschlossen)
-- `docs/superpowers/specs/2026-05-18-telegram-flex-rhythm-design.md` — Telegram + Flex Rhythm Spec
-- `docs/superpowers/plans/2026-05-18-telegram-flex-rhythm.md` — Telegram Implementierungsplan
-
-## Bekannte Einschraenkungen
-
-- Supabase Free Tier: 500MB DB, 500K Edge Function Calls/Monat, 200 concurrent Realtime
-- Gemini Free: 1500 Calls/Tag
-- pg_cron: max 2 Jobs auf Free Tier
-- react-globe.gl polygonsData: NICHT verwenden (Artefakte). Immer objectsData + ShapeGeometry
+- Phase 1 MVP gebaut: Landing, Wissen, Tech-Tree, Lesson, Keys, Provider, Telegram-Auto-Setup
+- 20 Skills im Katalog, 28 Glossar-Begriffe, 40 Provider gelistet
+- Affiliate-Manager funktioniert, aber noch keine Affiliate-IDs eingetragen (kommt später vom User)
+- Auf Branch `tech-tree-mvp`, noch nicht gemerged
+- Live-Smoke-Test (Login → Telegram → Skill freischalten) noch nicht durchgeführt

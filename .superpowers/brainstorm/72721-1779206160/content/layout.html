@@ -1,0 +1,167 @@
+<h2>Welches Layout soll deine Haupt-Spielseite haben?</h2>
+<p class="subtitle">Drei radikal unterschiedliche Ansätze. Klick zum Auswählen.</p>
+
+<style>
+  .mock {
+    background: #0a1525;
+    border: 2px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    padding: 12px;
+    height: 340px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 11px;
+    color: #cbd5e1;
+  }
+  .mock-row { display: flex; gap: 8px; }
+  .mock-box {
+    background: rgba(99, 102, 241, 0.15);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    border-radius: 6px;
+    padding: 6px 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+  .mock-hero {
+    background: linear-gradient(135deg, rgba(167,139,250,0.3), rgba(99,102,241,0.2));
+    border: 1px solid rgba(167,139,250,0.5);
+    color: #fff;
+    font-weight: 600;
+  }
+  .mock-map {
+    background:
+      radial-gradient(circle at 30% 40%, rgba(74,222,128,0.3) 0%, transparent 30%),
+      radial-gradient(circle at 70% 50%, rgba(74,222,128,0.25) 0%, transparent 28%),
+      radial-gradient(circle at 50% 80%, rgba(229,231,235,0.2) 0%, transparent 25%),
+      linear-gradient(180deg, #1e3a5f 0%, #0f1f3a 100%);
+    border: 1px solid rgba(96,165,250,0.3);
+    color: rgba(255,255,255,0.5);
+    position: relative;
+  }
+  .mock-emoji-dot {
+    position: absolute;
+    font-size: 14px;
+  }
+  .mock-stat {
+    flex: 1;
+    background: rgba(255,255,255,0.05);
+    padding: 4px 6px;
+    text-align: center;
+    border-radius: 4px;
+    font-size: 10px;
+  }
+  .mock-stat strong { display: block; color: #fff; font-size: 13px; }
+  .mock-label { font-size: 9px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
+</style>
+
+<div class="cards">
+
+  <!-- Layout A: Character-first -->
+  <div class="card" data-choice="character-first" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mock">
+        <div class="mock-row" style="flex:0">
+          <div class="mock-box mock-hero" style="flex:2; min-height: 90px; flex-direction:column; gap:4px">
+            <div style="font-size:32px">🧙‍♀️</div>
+            <div style="font-weight:700; color:white">Gisela · Gen 3</div>
+            <div style="font-size:10px">Bauer · Energie 78 · Alter 1240/2400</div>
+          </div>
+          <div style="flex:1; display:flex; flex-direction:column; gap:6px">
+            <div class="mock-box" style="font-size:10px">🏆 6 Erfolge</div>
+            <div class="mock-box" style="font-size:10px">👨‍👩‍👧 4 Kinder</div>
+            <div class="mock-box" style="font-size:10px">📜 Stammbaum</div>
+          </div>
+        </div>
+        <div class="mock-row" style="flex:1">
+          <div class="mock-box mock-map" style="flex:2">
+            <span class="mock-emoji-dot" style="top:30%; left:35%; font-size:18px">🧙‍♀️</span>
+            <span class="mock-emoji-dot" style="top:45%; left:48%">👨‍🌾</span>
+            <span class="mock-emoji-dot" style="top:55%; left:42%">🛡️</span>
+            <span class="mock-label" style="position:absolute; top:8px; left:8px;">Karte (klein)</span>
+          </div>
+          <div class="mock-box" style="flex:1; flex-direction:column; align-items:stretch; gap:4px; font-size:10px">
+            <div class="mock-label">Lebenslauf</div>
+            <div style="text-align:left">⚒️ Hütte gebaut</div>
+            <div style="text-align:left">💑 Partner gefunden</div>
+            <div style="text-align:left">🌾 Farm bestellt</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A · Charakter zuerst</h3>
+      <p><strong>Dein Agent ist der Star.</strong> Großes Portrait + Stats oben. Karte ist klein, zoomt automatisch auf deinen Charakter. Daneben: Erfolge, Stammbaum, aktueller Lebenslauf-Stream. Du siehst was DEIN Charakter macht, nicht die ganze Welt.</p>
+    </div>
+  </div>
+
+  <!-- Layout B: Map-first with character HUD -->
+  <div class="card" data-choice="map-first" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mock">
+        <div class="mock-row" style="flex:0; align-items:center">
+          <div class="mock-box mock-hero" style="flex:0 0 auto; padding:4px 10px">🧙‍♀️ Gisela</div>
+          <div class="mock-stat"><span class="mock-label">Energie</span><strong>78</strong></div>
+          <div class="mock-stat"><span class="mock-label">Alter</span><strong>52%</strong></div>
+          <div class="mock-stat"><span class="mock-label">Familie</span><strong>4 👨‍👩‍👧</strong></div>
+          <div class="mock-stat"><span class="mock-label">🏆</span><strong>6</strong></div>
+        </div>
+        <div class="mock-row" style="flex:1">
+          <div class="mock-box mock-map" style="flex:1">
+            <span class="mock-emoji-dot" style="top:15%; left:20%">🧙‍♀️</span>
+            <span class="mock-emoji-dot" style="top:25%; left:35%">👨‍🌾</span>
+            <span class="mock-emoji-dot" style="top:30%; left:55%">🛡️</span>
+            <span class="mock-emoji-dot" style="top:50%; left:30%">🔬</span>
+            <span class="mock-emoji-dot" style="top:65%; left:60%">👨‍🌾</span>
+            <span class="mock-emoji-dot" style="top:75%; left:45%">⚒️</span>
+            <span class="mock-label" style="position:absolute; bottom:8px; left:8px;">Karte (groß)</span>
+          </div>
+        </div>
+        <div class="mock-row" style="flex:0">
+          <div class="mock-box" style="flex:1; padding:4px; font-size:10px">
+            📜 Gisela hat Sara geheiratet · vor 3 Min
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B · Karte zuerst mit Charakter-HUD</h3>
+      <p><strong>Karte bleibt zentral.</strong> Schlanker Charakter-HUD oben (Avatar + 4 Stats). Untenn: Storyline-Ticker für deine Familie. Aktuelles Welt-Erlebnis bleibt erhalten, dein Charakter ist klar markiert.</p>
+    </div>
+  </div>
+
+  <!-- Layout C: Split screen -->
+  <div class="card" data-choice="split" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mock">
+        <div class="mock-row" style="flex:1">
+          <div style="flex:1; display:flex; flex-direction:column; gap:6px">
+            <div class="mock-box mock-hero" style="flex:1; flex-direction:column; gap:4px; min-height: 100px">
+              <div style="font-size:48px">🧙‍♀️</div>
+              <div style="font-weight:700; color:white; font-size:13px">Gisela · Gen 3</div>
+              <div style="font-size:10px">Energie 78 · 1240/2400 Ticks</div>
+            </div>
+            <div class="mock-box" style="flex:0; font-size:10px; padding:6px">📜 Lebenslauf</div>
+            <div class="mock-box" style="flex:0; font-size:10px; padding:6px">🌳 Stammbaum (Gen 0-3)</div>
+            <div class="mock-box" style="flex:0; font-size:10px; padding:6px">🏆 Erfolge: 6</div>
+          </div>
+          <div class="mock-box mock-map" style="flex:1.5">
+            <span class="mock-emoji-dot" style="top:25%; left:30%; font-size:18px">🧙‍♀️</span>
+            <span class="mock-emoji-dot" style="top:45%; left:50%">👨‍🌾</span>
+            <span class="mock-emoji-dot" style="top:60%; left:35%">🛡️</span>
+            <span class="mock-emoji-dot" style="top:75%; left:55%">🔬</span>
+            <span class="mock-label" style="position:absolute; top:8px; right:8px;">Karte</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C · Split View</h3>
+      <p><strong>Charakter links, Welt rechts.</strong> Permanenter 40/60-Split. Links immer dein Char mit Lebenslauf, Stammbaum, Erfolgen. Rechts die Karte. Du wechselst nie den Bildschirm.</p>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:24px">💡 <strong>Mein Vorschlag:</strong> Layout C (Split View). Es löst direkt dein Hauptproblem — du verstehst sofort was mit deinem Agent ist (links) und siehst gleichzeitig die Welt (rechts). Bei Tod bleibt der Lebenslauf links sichtbar, du siehst genau wie und wann er starb. Beim Erbfolgewechsel poppt eine Animation auf, der Nachfahre rückt links nach.</p>

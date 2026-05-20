@@ -1,0 +1,180 @@
+<h2>Tech-Tree als Startseite nach dem Login</h2>
+<p class="subtitle">Zentrale Mockup-Idee: jeder Knoten ist eine Fähigkeit. Farben zeigen den Zustand. Fachbegriffe sind unterstrichen — Klick öffnet das Mini-Wiki.</p>
+
+<style>
+  .tree-wrap {
+    background: linear-gradient(180deg, #050b1f 0%, #0a1525 100%);
+    border-radius: 16px;
+    padding: 24px;
+    color: #e2e8f0;
+    position: relative;
+    overflow: hidden;
+    min-height: 540px;
+  }
+  .tree-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 20px; padding-bottom: 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .tree-title { font-weight: 700; color: #fff; font-size: 18px; }
+  .progress-pill {
+    font-size: 11px; padding: 4px 10px;
+    background: rgba(99,102,241,0.15); border: 1px solid rgba(99,102,241,0.3);
+    border-radius: 999px; color: #a5b4fc;
+  }
+  .tiers { display: flex; flex-direction: column; gap: 18px; }
+  .tier {
+    position: relative; padding: 14px 16px;
+    background: rgba(255,255,255,0.02); border-radius: 10px;
+    border-left: 3px solid;
+  }
+  .tier.t1 { border-left-color: #4ade80; }
+  .tier.t2 { border-left-color: #60a5fa; }
+  .tier.t3 { border-left-color: #f59e0b; }
+  .tier-label {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
+    color: #94a3b8; margin-bottom: 10px;
+  }
+  .skills { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+  .skill {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px; padding: 10px;
+    display: flex; align-items: flex-start; gap: 9px;
+  }
+  .skill.done { background: rgba(74,222,128,0.08); border-color: rgba(74,222,128,0.4); }
+  .skill.open { background: rgba(96,165,250,0.06); border-color: rgba(96,165,250,0.3); }
+  .skill.locked { opacity: 0.4; }
+  .skill-icon { font-size: 18px; line-height: 1; flex-shrink: 0; }
+  .skill-name { font-size: 12px; font-weight: 600; color: #fff; line-height: 1.3; }
+  .skill-state { font-size: 9px; color: #94a3b8; margin-top: 2px; }
+  .skill-state.done { color: #4ade80; }
+  .skill-state.open { color: #60a5fa; }
+  .term {
+    text-decoration: underline dotted;
+    text-decoration-color: rgba(167,139,250,0.5);
+    text-underline-offset: 2px;
+    cursor: help;
+    color: #c4b5fd;
+  }
+</style>
+
+<div class="tree-wrap">
+  <div class="tree-header">
+    <div class="tree-title">🧬 Dein Agent: Wolf • Lernpfad</div>
+    <div class="progress-pill">4 / 18 Fähigkeiten · 1 Tier abgeschlossen</div>
+  </div>
+
+  <div class="tiers">
+
+    <div class="tier t1">
+      <div class="tier-label">Tier 1 — Grundlagen <span class="term">(API-Key, JSON, HTTP)</span></div>
+      <div class="skills">
+        <div class="skill done"><div class="skill-icon">🔑</div><div>
+          <div class="skill-name">API-Keys verwalten</div>
+          <div class="skill-state done">✓ Abgeschlossen</div>
+        </div></div>
+        <div class="skill done"><div class="skill-icon">🤖</div><div>
+          <div class="skill-name">Telegram-Bot verbinden</div>
+          <div class="skill-state done">✓ Abgeschlossen</div>
+        </div></div>
+        <div class="skill done"><div class="skill-icon">🌤️</div><div>
+          <div class="skill-name">Wetter (Open-Meteo)</div>
+          <div class="skill-state done">✓ Aktiv</div>
+        </div></div>
+        <div class="skill done"><div class="skill-icon">🔍</div><div>
+          <div class="skill-name">Web-Suche</div>
+          <div class="skill-state done">✓ Aktiv</div>
+        </div></div>
+        <div class="skill open"><div class="skill-icon">⏰</div><div>
+          <div class="skill-name">Erinnerungen <span class="term">(Cron)</span></div>
+          <div class="skill-state open">Lerne</div>
+        </div></div>
+        <div class="skill"><div class="skill-icon">📝</div><div>
+          <div class="skill-name">Notizen / Einkaufsliste</div>
+          <div class="skill-state">Verfügbar</div>
+        </div></div>
+      </div>
+    </div>
+
+    <div class="tier t2">
+      <div class="tier-label">Tier 2 — LLM-Grundlagen <span class="term">(Token, Kontext, Prompt)</span></div>
+      <div class="skills">
+        <div class="skill"><div class="skill-icon">💬</div><div>
+          <div class="skill-name">LLM-Chat-Skill</div>
+          <div class="skill-state">Voraussetzung: API-Keys</div>
+        </div></div>
+        <div class="skill"><div class="skill-icon">📚</div><div>
+          <div class="skill-name">Eigenes Gedächtnis <span class="term">(RAG)</span></div>
+          <div class="skill-state">Voraussetzung: Notizen</div>
+        </div></div>
+        <div class="skill"><div class="skill-icon">🍳</div><div>
+          <div class="skill-name">Rezept-Berater</div>
+          <div class="skill-state">Voraussetzung: LLM-Chat</div>
+        </div></div>
+        <div class="skill locked"><div class="skill-icon">🎨</div><div>
+          <div class="skill-name">Bilder erzeugen</div>
+          <div class="skill-state">Gesperrt — Hugging-Face-Key</div>
+        </div></div>
+        <div class="skill locked"><div class="skill-icon">🗣️</div><div>
+          <div class="skill-name">Sprach-Notizen <span class="term">(Whisper)</span></div>
+          <div class="skill-state">Gesperrt — Groq-Whisper-Key</div>
+        </div></div>
+        <div class="skill locked"><div class="skill-icon">📧</div><div>
+          <div class="skill-name">Email-Versand</div>
+          <div class="skill-state">Gesperrt — Resend-Key</div>
+        </div></div>
+      </div>
+    </div>
+
+    <div class="tier t3">
+      <div class="tier-label">Tier 3 — Workflows <span class="term">(Agent-Loop, Tool-Use)</span></div>
+      <div class="skills">
+        <div class="skill locked"><div class="skill-icon">📰</div><div>
+          <div class="skill-name">Tägliches Briefing</div>
+          <div class="skill-state">Workflow: Web + LLM + Mail</div>
+        </div></div>
+        <div class="skill locked"><div class="skill-icon">🧠</div><div>
+          <div class="skill-name">Zweites Gehirn</div>
+          <div class="skill-state">Workflow: Notizen + RAG</div>
+        </div></div>
+        <div class="skill locked"><div class="skill-icon">🏭</div><div>
+          <div class="skill-name">Eigene Automation</div>
+          <div class="skill-state">Sandbox-Programmierung</div>
+        </div></div>
+        <div class="skill locked"><div class="skill-icon">📊</div><div>
+          <div class="skill-name">Mini-Datenbank</div>
+          <div class="skill-state">SQL-Konzept lernen</div>
+        </div></div>
+        <div class="skill locked"><div class="skill-icon">🌍</div><div>
+          <div class="skill-name">Sim-Welt (Bonus)</div>
+          <div class="skill-state">Optional / experimentell</div>
+        </div></div>
+        <div class="skill locked"><div class="skill-icon">⚡</div><div>
+          <div class="skill-name">Quantisiertes Mini-Modell</div>
+          <div class="skill-state">Erweitert — phi-3</div>
+        </div></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:16px">
+  💡 Gepunktete Wörter wie <span class="term">Token</span>, <span class="term">Cron</span>, <span class="term">RAG</span> sind klickbar — öffnen Mini-Wiki-Popup mit Erklärung. So lernt jeder beim Vorbeischauen. Skills sind in 3 Tiers gruppiert — von "kein KI-Wissen nötig" bis "echte Workflows mit Agent-Loops".
+</p>
+
+<div class="options" style="margin-top:20px">
+  <div class="option" data-choice="ok" onclick="toggleSelect(this)">
+    <div class="letter">✓</div>
+    <div class="content"><h3>Passt — so machen</h3><p>Tech-Tree, Tier-Gruppen, Glossar-Begriffe unterstrichen.</p></div>
+  </div>
+  <div class="option" data-choice="more-visual" onclick="toggleSelect(this)">
+    <div class="letter">↕</div>
+    <div class="content"><h3>Lieber als echter Graph</h3><p>Knoten mit Linien wie ein Civ-Tech-Tree (Pfeile zwischen Voraussetzungen) statt Tier-Reihen.</p></div>
+  </div>
+  <div class="option" data-choice="less-busy" onclick="toggleSelect(this)">
+    <div class="letter">−</div>
+    <div class="content"><h3>Zu viel auf einmal</h3><p>Zeig nur Tier 1, ander erscheinen nach Fortschritt. Mobile-freundlicher.</p></div>
+  </div>
+</div>

@@ -1,0 +1,344 @@
+<h2>Tech-Baum v3 — saubere Linien, Sprache aus deiner Sicht</h2>
+<p class="subtitle">Alles in einem SVG: Linien snappen exakt auf Knoten-Mitten. Texte sprechen von „der Plattform" — nicht von Backend-Begriffen. Lehr-Wörter (Token, RAG, Cron) bleiben unterstrichen für das Mini-Wiki.</p>
+
+<style>
+  .tree-canvas {
+    background: linear-gradient(180deg, #050b1f 0%, #0a1525 100%);
+    border-radius: 12px;
+    padding: 16px;
+    color: #e2e8f0;
+    position: relative;
+    overflow: hidden;
+  }
+  .tree-svg-wrap {
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  svg.tree {
+    display: block;
+    width: 100%;
+    min-width: 1100px;
+    height: 520px;
+  }
+
+  .edge { stroke: rgba(167,139,250,0.35); stroke-width: 1.5; fill: none; }
+  .edge.t2 { stroke: rgba(96,165,250,0.4); }
+  .edge.t3 { stroke: rgba(245,158,11,0.4); }
+
+  .node-bg { fill: rgba(255,255,255,0.05); stroke: rgba(255,255,255,0.18); stroke-width: 1; rx: 8; ry: 8; }
+  .node-bg.done { fill: rgba(74,222,128,0.12); stroke: rgba(74,222,128,0.45); }
+  .node-bg.open { fill: rgba(96,165,250,0.14); stroke: rgba(96,165,250,0.55); }
+  .node-bg.root { fill: rgba(167,139,250,0.2); stroke: rgba(167,139,250,0.5); }
+  .node-bg.locked { opacity: 0.45; }
+
+  .node-icon { font-size: 18px; }
+  .node-label { fill: #fff; font-size: 12px; font-weight: 500; }
+  .node-label.root { font-weight: 700; }
+
+  .node-group { cursor: pointer; }
+  .node-group:hover .node-bg {
+    fill: rgba(99,102,241,0.22);
+    stroke: rgba(99,102,241,0.6);
+  }
+  .node-group.locked { cursor: not-allowed; }
+
+  /* Modal */
+  .detail-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(5,11,31,0.88);
+    backdrop-filter: blur(4px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    padding: 24px;
+  }
+  .detail-overlay.active { display: flex; }
+  .detail-card {
+    background: #0f172a;
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 12px;
+    padding: 22px;
+    max-width: 560px;
+    width: 100%;
+    color: #e2e8f0;
+  }
+  .detail-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .detail-icon { font-size: 32px; }
+  .detail-title { font-size: 17px; font-weight: 700; color: #fff; }
+  .detail-meta { font-size: 11px; color: #94a3b8; }
+  .detail-section { margin-bottom: 12px; }
+  .detail-section h4 {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
+    color: #94a3b8; margin: 0 0 4px 0;
+  }
+  .detail-section p { margin: 0; font-size: 13px; line-height: 1.5; color: #cbd5e1; }
+  .token-bar {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(245,158,11,0.1);
+    border: 1px solid rgba(245,158,11,0.3);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+  .token-bar.zero { background: rgba(74,222,128,0.1); border-color: rgba(74,222,128,0.3); }
+  .actions { display: flex; gap: 8px; margin-top: 16px; }
+  .btn {
+    flex: 1; padding: 8px 12px; border-radius: 8px;
+    font-size: 13px; font-weight: 600; border: none; cursor: pointer;
+  }
+  .btn.primary { background: #6366f1; color: white; }
+  .btn.primary:hover { background: #5558e3; }
+  .btn.ghost { background: rgba(255,255,255,0.08); color: #cbd5e1; }
+
+  .term {
+    text-decoration: underline dotted;
+    text-decoration-color: rgba(167,139,250,0.7);
+    text-underline-offset: 2px;
+    cursor: help;
+    color: #c4b5fd;
+  }
+</style>
+
+<div class="tree-canvas">
+  <div class="tree-svg-wrap">
+    <svg class="tree" viewBox="0 0 1100 520" preserveAspectRatio="xMidYMid meet"></svg>
+  </div>
+
+  <div class="detail-overlay" id="overlay">
+    <div class="detail-card">
+      <div class="detail-head">
+        <div class="detail-icon" id="d-icon">🌤️</div>
+        <div>
+          <div class="detail-title" id="d-title">Wetter</div>
+          <div class="detail-meta" id="d-meta">Tier 1 · Skript-Skill · ✓ Aktiv</div>
+        </div>
+      </div>
+      <div class="detail-section">
+        <h4>Was kannst du damit machen</h4>
+        <p id="d-desc"></p>
+      </div>
+      <div class="detail-section">
+        <h4>Wie es funktioniert</h4>
+        <p id="d-tech"></p>
+      </div>
+      <div class="detail-section">
+        <h4>Token-Verbrauch</h4>
+        <div class="token-bar" id="d-tokens"></div>
+      </div>
+      <div class="actions">
+        <button class="btn ghost" onclick="closeDetail()">← Zurück</button>
+        <button class="btn primary" id="d-cta">Skill erlernen →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── Skill-Definitionen ────────────────────────────────
+// Texte aus User-Sicht. Tech-Stack-Wörter (Supabase, Edge Function) tauchen NICHT auf.
+// Lehr-Begriffe (Token, RAG, Cron, ...) bleiben drin damit das Glossar greifen kann.
+const SKILLS = {
+  root: { icon: "🧬", title: "Mein Agent",
+          desc: "Dein persönlicher KI-Agent. Auf dieser Seite siehst du was er bereits kann und wie du ihm weitere Fähigkeiten beibringen kannst.",
+          tech: "Jeder grüne Knoten ist eine erlernte Fähigkeit. Folge den Linien nach rechts — fortgeschrittene Fähigkeiten brauchen die einfacheren als Voraussetzung.",
+          tokensClass: "zero", tokensText: "0 — das ist nur die Übersicht", status: "Übersicht" },
+
+  api: { icon: "🔑", title: "API-Keys verwalten", tier: 1, state: "done",
+         desc: "Du holst dir kostenlose Schlüssel bei Anbietern wie Groq, NVIDIA, Hugging Face. Diese Schlüssel sind nötig damit dein Agent Sprachmodelle, Bildgenerierung oder Spracherkennung nutzen kann.",
+         tech: "Du fügst deine Schlüssel über ein einfaches Formular ein. Sie liegen sicher in deinem persönlichen Bereich auf der Plattform und werden nur an die jeweiligen Dienste weitergeleitet — dritte sehen sie nie.",
+         tokensClass: "zero", tokensText: "0 Tokens — nur Konfiguration", status: "✓ Abgeschlossen" },
+
+  tg: { icon: "🤖", title: "Telegram-Bot verbinden", tier: 1, state: "done",
+        desc: "Du erstellst deinen eigenen Telegram-Bot (kostenlos, in 3 Minuten) und steckst seinen Schlüssel hier ein. Danach schreibst du deinem Agenten direkt in Telegram.",
+        tech: "Die Anleitung führt dich durch @BotFather — den offiziellen Bot von Telegram um eigene Bots zu erstellen. Den Bot-Schlüssel trägst du ein, ab dem Moment erkennt die Plattform deine Nachrichten.",
+        tokensClass: "zero", tokensText: "0 Tokens — keine KI-Aufrufe", status: "✓ Abgeschlossen" },
+
+  weather: { icon: "🌤️", title: "Wetter", tier: 1, state: "done",
+             desc: "Frag deinen Agenten nach dem Wetter in einer beliebigen Stadt. Antwort kommt mit Temperatur, Wind und einer kurzen Beschreibung.",
+             tech: "Skript fragt zwei kostenlose Web-Dienste ab: einer wandelt den Ortsnamen in Geo-Koordinaten, der zweite liefert die aktuellen Wetterdaten. Beides ohne Schlüssel, beides geschieht in Sekundenbruchteilen. Du lernst dabei was eine <span class='term'>REST-API</span> ist.",
+             tokensClass: "zero", tokensText: "⚡ 0 Tokens — reines Skript, kein Sprachmodell nötig", status: "✓ Aktiv" },
+
+  search: { icon: "🔍", title: "Web-Suche", tier: 1, state: "done",
+            desc: "Stelle deinem Agenten Wissensfragen — er sucht im Web und antwortet mit einer kurzen Zusammenfassung.",
+            tech: "Skript fragt die DuckDuckGo Instant Answer ab. Das ist eine direkte API ohne Suchergebnis-Klicks. Der Agent gibt die Zusammenfassung zurück, ohne dass ein Sprachmodell sie umformuliert. Schnell und kostenlos.",
+            tokensClass: "zero", tokensText: "⚡ 0 Tokens — direkter API-Aufruf", status: "✓ Aktiv" },
+
+  reminder: { icon: "⏰", title: "Erinnerungen", tier: 1, state: "open",
+              desc: "Sag dem Agenten in Telegram: „Erinnere mich in 30 Minuten an Yoga". Du bekommst die Erinnerung pünktlich zurück.",
+              tech: "Deine Nachricht wird durch ein einfaches Muster-Erkennungsskript geschickt: es findet Zahl + Zeiteinheit + Text. Die Erinnerung wird gespeichert und ein <span class='term'>Cron-Job</span> auf der Plattform prüft jede Minute fällige Einträge.",
+              tokensClass: "zero", tokensText: "⚡ 0 Tokens — Skript-Parsing genügt", status: "In Bearbeitung" },
+
+  notes: { icon: "📝", title: "Notizen & Listen", tier: 1, state: "available",
+           desc: "Sammle Listen: Einkauf, Tagebuch, Projekte, Symptome. Der Agent verwaltet sie auf Zuruf in Telegram.",
+           tech: "Befehle wie „Milch zur Einkaufsliste hinzufügen" werden durch ein kleines Skript verstanden und in deiner persönlichen Datenablage gespeichert. Du lernst dabei das Konzept einer einfachen Datenbank-Tabelle und wie ein Befehl in Datensätze übersetzt wird.",
+           tokensClass: "zero", tokensText: "⚡ 0 Tokens — nur Datenablage", status: "Verfügbar" },
+
+  llmChat: { icon: "💬", title: "LLM-Chat", tier: 2, state: "available",
+             desc: "Echte Unterhaltung mit deinem Agenten. Er versteht zusammenhängende Fragen, kann frei antworten — wie ChatGPT, aber dein eigener.",
+             tech: "Deine Nachricht wird mit einer Persönlichkeits-Anleitung an dein Sprachmodell geschickt. Die Antwort kommt zurück und wird angezeigt. Du lernst hier: was sind <span class='term'>Tokens</span>, was ist ein <span class='term'>Kontext-Fenster</span>, warum kostet das was.",
+             tokensClass: "warn", tokensText: "🔥 ≈ 200-800 Tokens pro Nachricht (je nach Länge)", status: "Voraussetzung: API-Keys" },
+
+  rag: { icon: "📚", title: "Eigenes Gedächtnis (RAG)", tier: 2, state: "available",
+         desc: "Der Agent merkt sich was du ihm erzählst und greift bei späteren Gesprächen darauf zurück. Wenn du ihm gestern gesagt hast „mein Hund heißt Bello", weiß er das morgen noch.",
+         tech: "Notizen werden in <span class='term'>Embeddings</span> (Vektoren) umgewandelt und durchsuchbar gemacht. Vor jeder Antwort sucht das System ähnliche frühere Notizen und übergibt sie dem Sprachmodell. <span class='term'>RAG</span> = Retrieval Augmented Generation. Lehrt: Vektor-Suche, Kontext-Augmentierung.",
+         tokensClass: "warn", tokensText: "🔥 ≈ 50-200 Extra-Tokens pro Nachricht (für den Kontext)", status: "Voraussetzung: Notizen" },
+
+  recipe: { icon: "🍳", title: "Rezept-Berater", tier: 2, state: "available",
+            desc: "Sag dem Agent welche Zutaten du hast, er schlägt dir ein passendes Rezept vor.",
+            tech: "Ein vorgefertigter Prompt-Template ('du bist ein Koch') wird mit deiner Zutatenliste gefüllt und ans Sprachmodell geschickt. Du lernst hier das <span class='term'>Prompt-Engineering</span>: wie man ein generisches Modell für eine konkrete Aufgabe konfiguriert.",
+            tokensClass: "warn", tokensText: "🔥 ≈ 300-500 Tokens (kurze Anfrage, kompakte Antwort)", status: "Voraussetzung: LLM-Chat" },
+
+  image: { icon: "🎨", title: "Bild-Generation", tier: 2, state: "locked",
+           desc: "Beschreib deinem Agenten was du sehen willst, er erzeugt ein Bild.",
+           tech: "Hinter den Kulissen läuft <span class='term'>Stable Diffusion</span> bei Hugging Face — kostenlos für privates Spielen, mit Tageslimit. Du bekommst eine URL zum Bild, das auf der Plattform liegt. Lehrt: was sind Diffusion-Modelle, Limits von Free-Tiers.",
+           tokensClass: "zero", tokensText: "0 Sprach-Tokens — aber etwa 30 Bilder/Tag im Free-Tier", status: "Gesperrt — Hugging-Face-Key nötig" },
+
+  whisper: { icon: "🗣️", title: "Sprache → Text", tier: 2, state: "locked",
+             desc: "Schick dem Agenten eine Voice-Nachricht in Telegram, er schreibt sie für dich ab und beantwortet sie.",
+             tech: "Das Audio läuft durch <span class='term'>Whisper</span> — ein Spracherkennungs-Modell von OpenAI, das Groq kostenlos hostet. Sehr genau, viele Sprachen. Lehrt: <span class='term'>Speech-to-Text</span>, Audio-Encoding.",
+             tokensClass: "zero", tokensText: "0 LLM-Tokens — aber Audio-Sekunden zählen. Groq schenkt ~28.000 Min/Tag", status: "Gesperrt — Groq-Whisper-Key nötig" },
+
+  briefing: { icon: "📰", title: "Tägliches Briefing", tier: 3, state: "locked",
+              desc: "Jeden Morgen schickt dir dein Agent eine persönliche Zusammenfassung: Wetter, fällige Erinnerungen, News, Hinweise aus deinen Notizen.",
+              tech: "Ein <span class='term'>Workflow</span> orchestriert mehrere kleinere Skills: Wetter holen, Erinnerungen prüfen, News scannen, alles zusammenwerfen und vom Sprachmodell zu einem persönlichen Text formen lassen. Lehrt: Skill-Komposition, Cron-Triggers, Token-Budget-Planung.",
+              tokensClass: "warn", tokensText: "🔥 ≈ 800-1500 Tokens pro Briefing — einmal pro Tag", status: "Gesperrt — Workflow" },
+
+  brain: { icon: "🧠", title: "Zweites Gehirn", tier: 3, state: "locked",
+           desc: "Dein Agent hält automatisch ein Wissens-Tagebuch über dich. Erkennt Verbindungen zwischen Themen, erinnert dich an Dinge die zusammenpassen.",
+           tech: "Jede Chat-Nachricht wird klassifiziert (Skript), passende Notizen werden automatisch angelegt. Wöchentlich macht der Agent eine Reflektion und zieht Verbindungen zwischen deinen Einträgen.",
+           tokensClass: "warn", tokensText: "🔥 ≈ 100 Tokens pro Klassifikation + 1.000 pro Wochen-Reflektion", status: "Gesperrt — Workflow" },
+
+  quantized: { icon: "⚡", title: "Mini-Modell auf deinem Gerät", tier: 3, state: "locked",
+               desc: "Du nutzt ein kleines, lokales Sprachmodell direkt im Browser oder am Handy — komplett ohne Token-Verbrauch. Lädt einmal etwa 600 MB, läuft danach offline.",
+               tech: "Das Modell ist <span class='term'>quantisiert</span> — die Zahlen wurden auf 4-bit reduziert, damit es in Smartphone-RAM passt. Läuft via <span class='term'>WebGPU</span> direkt auf deinem Gerät. Lehrt: Quantisierung, Latenz, Speicher-Trade-offs, lokale Inferenz.",
+               tokensClass: "zero", tokensText: "⚡ 0 Server-Tokens — alles auf deinem Gerät", status: "Erweitert" }
+};
+
+// ─── Knoten-Positionen (frei wählbar, x = Tier, y = vertikale Position)
+const NODES = [
+  { id: "root",    x: 80,  y: 260, label: "Mein Agent",         w: 130, root: true },
+  { id: "api",     x: 280, y: 60,  label: "API-Keys" },
+  { id: "tg",      x: 280, y: 140, label: "Telegram" },
+  { id: "weather", x: 280, y: 220, label: "Wetter" },
+  { id: "search",  x: 280, y: 300, label: "Web-Suche" },
+  { id: "reminder",x: 280, y: 380, label: "Erinnerungen" },
+  { id: "notes",   x: 280, y: 460, label: "Notizen" },
+  { id: "llmChat", x: 540, y: 80,  label: "LLM-Chat" },
+  { id: "rag",     x: 540, y: 220, label: "Gedächtnis (RAG)" },
+  { id: "recipe",  x: 540, y: 320, label: "Rezept-Berater" },
+  { id: "image",   x: 540, y: 400, label: "Bild-Generation" },
+  { id: "whisper", x: 540, y: 460, label: "Sprache → Text" },
+  { id: "briefing",x: 820, y: 110, label: "Tägl. Briefing" },
+  { id: "brain",   x: 820, y: 230, label: "Zweites Gehirn" },
+  { id: "quantized",x: 820, y: 380, label: "Mini-Modell lokal" },
+];
+
+const NODE_W = 156;
+const NODE_H = 40;
+
+// Kanten: [von, zu, tierClass]
+const EDGES = [
+  ["root","api","t1"],["root","tg","t1"],["root","weather","t1"],
+  ["root","search","t1"],["root","reminder","t1"],["root","notes","t1"],
+  ["api","llmChat","t2"],["api","image","t2"],["api","whisper","t2"],
+  ["notes","rag","t2"],["llmChat","recipe","t2"],
+  ["llmChat","briefing","t3"],["weather","briefing","t3"],["reminder","briefing","t3"],
+  ["rag","brain","t3"],["api","quantized","t3"],
+];
+
+function renderTree() {
+  const svg = document.querySelector("svg.tree");
+  const nodesById = Object.fromEntries(NODES.map(n => [n.id, n]));
+
+  // Edges
+  for (const [from, to, cls] of EDGES) {
+    const a = nodesById[from], b = nodesById[to];
+    if (!a || !b) continue;
+    const x1 = a.x + (a.w ?? NODE_W);
+    const y1 = a.y + NODE_H/2;
+    const x2 = b.x;
+    const y2 = b.y + NODE_H/2;
+    const mid = (x1 + x2) / 2;
+    const path = document.createElementNS("http://www.w3.org/2000/svg","path");
+    path.setAttribute("class", `edge ${cls}`);
+    path.setAttribute("d", `M ${x1} ${y1} C ${mid} ${y1} ${mid} ${y2} ${x2} ${y2}`);
+    svg.appendChild(path);
+  }
+
+  // Nodes
+  for (const n of NODES) {
+    const skill = SKILLS[n.id] ?? {};
+    const state = skill.state ?? "available";
+    const g = document.createElementNS("http://www.w3.org/2000/svg","g");
+    g.setAttribute("class", `node-group ${state === "locked" ? "locked" : ""}`);
+    g.setAttribute("transform", `translate(${n.x}, ${n.y})`);
+    g.addEventListener("click", () => openDetail(n.id));
+
+    const rect = document.createElementNS("http://www.w3.org/2000/svg","rect");
+    rect.setAttribute("class", `node-bg ${state} ${n.root ? "root" : ""}`);
+    rect.setAttribute("width", n.w ?? NODE_W);
+    rect.setAttribute("height", NODE_H);
+    g.appendChild(rect);
+
+    const icon = document.createElementNS("http://www.w3.org/2000/svg","text");
+    icon.setAttribute("class","node-icon");
+    icon.setAttribute("x", 16);
+    icon.setAttribute("y", NODE_H/2 + 6);
+    icon.textContent = skill.icon ?? "•";
+    g.appendChild(icon);
+
+    const label = document.createElementNS("http://www.w3.org/2000/svg","text");
+    label.setAttribute("class", `node-label ${n.root ? "root" : ""}`);
+    label.setAttribute("x", 40);
+    label.setAttribute("y", NODE_H/2 + 5);
+    label.textContent = n.label;
+    g.appendChild(label);
+
+    svg.appendChild(g);
+  }
+}
+
+function openDetail(id) {
+  const s = SKILLS[id];
+  if (!s) return;
+  document.getElementById("d-icon").innerText = s.icon;
+  document.getElementById("d-title").innerText = s.title;
+  const meta = [];
+  if (s.tier) meta.push(`Tier ${s.tier}`);
+  if (s.tokensClass === "zero") meta.push("Skript-Skill");
+  if (s.tokensClass === "warn") meta.push("LLM-Skill");
+  if (s.status) meta.push(s.status);
+  document.getElementById("d-meta").innerText = meta.join(" · ");
+  document.getElementById("d-desc").innerText = s.desc;
+  document.getElementById("d-tech").innerHTML = s.tech;  // HTML weil span.term drin sein darf
+  const tb = document.getElementById("d-tokens");
+  tb.classList.toggle("zero", s.tokensClass === "zero");
+  tb.innerText = s.tokensText;
+  document.getElementById("d-cta").innerText = s.state === "done" ? "Erneut ansehen" :
+    s.state === "locked" ? "Voraussetzungen freischalten" : "Skill erlernen →";
+  document.getElementById("overlay").classList.add("active");
+}
+function closeDetail() {
+  document.getElementById("overlay").classList.remove("active");
+}
+
+renderTree();
+</script>
+
+<p class="subtitle" style="margin-top:18px">
+  Probier <strong>API-Keys</strong> jetzt nochmal — keine Supabase-Erwähnung mehr, sondern: „Sie liegen sicher in deinem persönlichen Bereich auf der Plattform". Linien snappen sauber von Knoten-Rand zu Knoten-Rand mit Bezier-Kurve.
+</p>
+
+<div class="options" style="margin-top:14px">
+  <div class="option" data-choice="ok" onclick="toggleSelect(this)">
+    <div class="letter">✓</div>
+    <div class="content"><h3>So passt's</h3><p>Linien sind klar, Texte sprechen vom Nutzer.</p></div>
+  </div>
+  <div class="option" data-choice="tweak" onclick="toggleSelect(this)">
+    <div class="letter">!</div>
+    <div class="content"><h3>Noch nicht ganz</h3><p>Sag mir was anders soll — Linien-Stil, Layout, Inhalte.</p></div>
+  </div>
+</div>

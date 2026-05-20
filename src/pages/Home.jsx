@@ -1,37 +1,37 @@
 import { Link } from 'react-router-dom'
-import { ArrowRight, Cpu, Eye, BookOpen, Users, Zap, Globe, Brain, Code2, Sparkles } from 'lucide-react'
+import { ArrowRight, Network, Key, BookOpen, Sparkles, Zap, Brain, Smartphone, Lock, Send } from 'lucide-react'
 import Earth from '../components/Earth'
 
 const features = [
   {
-    icon: Globe,
-    title: 'Lebendige Welt',
-    desc: 'Eine persistente 2D-Welt mit begrenzten Ressourcen, Jahreszeiten, Katastrophen und evolutionärem Druck — wie eine digitale Erde.',
+    icon: Network,
+    title: 'Lernpfad zum Anklicken',
+    desc: 'Ein visueller Tech-Baum mit 7 Themen-Pfaden. Du wählst was dich interessiert — Daten, Sicherheit, Automation, Sprachmodelle — und lernst es Schritt für Schritt.',
   },
   {
     icon: Brain,
-    title: 'KI-gesteuerte Agenten',
-    desc: 'Verbinde deinen eigenen LLM-API-Key. Dein Agent nutzt KI für strategische Entscheidungen — Allianzen, Handel, Planung.',
-  },
-  {
-    icon: Users,
-    title: 'Multiplayer-Evolution',
-    desc: 'Tausende Spieler schicken Agenten in dieselbe Welt. Menschliche Kreativität ersetzt blinde Mutation.',
-  },
-  {
-    icon: Code2,
-    title: 'Kein Code nötig',
-    desc: 'Der visuelle Konfigurator lässt dich Agenten ohne Programmierkenntnisse erstellen. Profis können die API direkt nutzen.',
+    title: 'KI-Konzepte hands-on',
+    desc: 'Token, RAG, Cron, OAuth, Quantisierung — keine Theorie, sondern Klick im Mini-Wiki und sofort selbst ausprobieren. Jede Fähigkeit lehrt ein echtes Konzept.',
   },
   {
     icon: Zap,
-    title: 'Emergente Intelligenz',
-    desc: 'Sprache, Handel, Betrug, Kooperation — alles entsteht von selbst. Keine Regeln, nur Überleben.',
+    title: 'Echter Agent als Belohnung',
+    desc: 'Was du im Spiel lernst, kann dein Telegram-Bot danach für dich tun: Wetter abfragen, Notizen verwalten, Erinnerungen setzen, Passwort-Leaks prüfen — wie du willst.',
+  },
+  {
+    icon: Smartphone,
+    title: 'Mobile zuerst',
+    desc: 'Kein PC nötig. Smartphone + Telegram reichen. Die ganze Plattform läuft im Browser, dein Agent in Telegram.',
+  },
+  {
+    icon: Lock,
+    title: 'Deine Daten bleiben bei dir',
+    desc: 'API-Keys hinterlegst du selbst, optional sogar dein eigener Cloud-Speicher (Google Drive, GitHub). Wir leiten nur durch — speichern nichts Privates.',
   },
   {
     icon: Sparkles,
-    title: 'Mitmachen erwünscht',
-    desc: 'Jeder kann Agenten erstellen und in die Welt schicken. Deine Züchtungen gehören dir — lade sie jederzeit herunter.',
+    title: 'Kostenlos',
+    desc: 'Wir laufen auf Free-Tiers von Supabase und Netlify. Du bringst deine eigenen kostenlosen API-Keys mit (Groq, Hugging Face). Token-sparsam designt.',
   },
 ]
 
@@ -46,24 +46,25 @@ export default function Home() {
             Earth <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-emerald-400 bg-clip-text text-transparent">0.1</span>
           </h1>
           <p className="text-xl sm:text-2xl text-gray-300 mt-4 leading-relaxed font-light">
-            Wir erschaffen digitales Leben. Zusammen.
+            Lerne KI — bau dir dabei deinen Agenten.
           </p>
           <p className="text-gray-400 mt-4 max-w-xl mx-auto leading-relaxed">
-            Eine offene Plattform, auf der KI-Agenten in einer virtuellen Welt ums Überleben kämpfen.
-            Jeder kann mitmachen — mit oder ohne Programmierkenntnisse.
+            Ein Lernspiel über KI, Agenten und das Internet. Du klickst dich durch den Tech-Baum,
+            verstehst nebenbei was Token, Cron oder RAG bedeuten — und schaltest dabei echte
+            Werkzeuge frei die dein Telegram-Bot ab sofort für dich nutzt.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center mt-8">
             <Link
-              to="/konfigurator"
+              to="/tech-tree"
               className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-gradient-to-r from-nebula-500 to-blue-600 text-white rounded-xl font-display font-semibold text-lg no-underline hover:shadow-lg hover:shadow-nebula-500/25 transition-all hover:-translate-y-0.5"
             >
-              <Cpu className="w-5 h-5" /> Agent erstellen
+              <Network className="w-5 h-5" /> Zum Tech-Baum
             </Link>
             <Link
-              to="/welt"
+              to="/wissen"
               className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white/5 text-white rounded-xl font-display font-semibold text-lg no-underline border border-white/10 hover:bg-white/10 transition-all hover:-translate-y-0.5"
             >
-              <Eye className="w-5 h-5" /> Welt beobachten
+              <BookOpen className="w-5 h-5" /> Erstmal stöbern
             </Link>
           </div>
         </div>
@@ -76,10 +77,10 @@ export default function Home() {
             Was ist Earth 0.1?
           </h2>
           <p className="text-gray-400 mt-4 max-w-2xl mx-auto leading-relaxed">
-            1970 erfand John Conway das "Game of Life" — drei einfache Regeln auf einem Raster,
-            und es entstanden Muster, die an lebende Organismen erinnerten. Earth 0.1 geht den
-            nächsten Schritt: Statt Pixel erschaffen wir KI-Agenten, die in einer Welt mit
-            echten Herausforderungen ums Überleben kämpfen.
+            Eine Bildungsplattform für KI-Grundlagen — verpackt als Lernspiel. Du arbeitest
+            dich durch einen Tech-Baum aus 20+ Fähigkeiten, jede lehrt ein konkretes
+            Konzept und resultiert in einem echten Werkzeug, das dein persönlicher Agent
+            danach nutzen kann.
           </p>
         </div>
 
@@ -102,27 +103,27 @@ export default function Home() {
       {/* How it works */}
       <section className="max-w-5xl mx-auto px-4 py-20">
         <h2 className="font-display text-3xl sm:text-4xl font-bold text-white text-center mb-16">
-          Wie funktioniert es?
+          So funktioniert es
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {[
             {
               step: '01',
-              title: 'Agent konfigurieren',
-              desc: 'Nutze den visuellen Konfigurator oder die API. Wähle Verhaltensmuster, Prioritäten und optional einen LLM-Anbieter.',
-              icon: Cpu,
+              title: 'Pfad wählen',
+              desc: 'Im Tech-Baum siehst du sieben Themen-Pfade. Klick auf den der dich interessiert — Sicherheit, Daten-APIs, Automation, ...',
+              icon: Network,
             },
             {
               step: '02',
-              title: 'In die Welt schicken',
-              desc: 'Dein Agent wird in der persistenten Welt platziert. Er muss Nahrung finden, Gefahren ausweichen und mit anderen interagieren.',
-              icon: Globe,
+              title: 'Skill erlernen',
+              desc: 'Drei Karten pro Skill: kurz lesen was es ist, dann selbst ausprobieren — entweder direkt im Browser oder per Telegram-Nachricht an deinen Bot.',
+              icon: BookOpen,
             },
             {
               step: '03',
-              title: 'Beobachten & iterieren',
-              desc: 'Schau zu, wie dein Agent überlebt. Lerne aus seinen Fehlern, passe die Strategie an und schicke verbesserte Versionen.',
-              icon: Eye,
+              title: 'Werkzeug nutzen',
+              desc: 'Jeder freigeschaltete Skill wird zu einer Fähigkeit deines Bots. „/wetter Berlin" — und dein Bot kann es ab sofort. Für immer.',
+              icon: Send,
             },
           ].map(({ step, title, desc, icon: Icon }) => (
             <div key={step} className="relative">
@@ -143,33 +144,57 @@ export default function Home() {
       <section className="max-w-3xl mx-auto px-4 py-20">
         <div className="bg-gradient-to-br from-nebula-500/10 to-blue-500/10 border border-nebula-500/20 rounded-2xl p-8 sm:p-12">
           <h2 className="font-display text-2xl sm:text-3xl font-bold text-white mb-6">
-            Wie dieses Projekt entstand
+            Warum es das gibt
           </h2>
           <div className="space-y-4 text-gray-300 leading-relaxed">
             <p>
-              Es begann mit einer Frage: <em className="text-white">Was wäre, wenn wir Conway's Game of Life
-              mit den Bedingungen der echten Erde kombinieren?</em> Begrenzte Ressourcen, Katastrophen,
-              Jahreszeiten — eine Umgebung, in der es einen echten Vorteil bringt, Intelligenz,
-              Sprache und soziale Systeme zu entwickeln.
+              KI-Agenten sind in aller Munde. Aber wer ohne Tech-Hintergrund verstehen will
+              wie das funktioniert, scheitert an zwei Hürden: <em className="text-white">die
+              Erklärungen sind entweder zu oberflächlich oder zu technisch</em>, und
+              die guten Tools (OpenAI-API, Bezahl-Frameworks) sind teuer. Mit einem
+              Free-Tier kommt man im echten Agenten-Betrieb kaum drei Tage weit.
             </p>
             <p>
-              Schnell wurde klar: Reine Evolution durch Mutation ist zu langsam. Die Natur brauchte
-              Milliarden Jahre für das erste Gehirn. Aber was, wenn wir blinde Mutation durch
-              menschliche Kreativität ersetzen? Tausende Menschen, die gegeneinander Strategien
-              optimieren — das beschleunigt alles um Größenordnungen.
+              Earth 0.1 löst beides: Du lernst <em className="text-white">durch Tun</em>,
+              nicht durch Lesen. Jede Fähigkeit ist ein kleines Skript — keine Sprachmodell-Calls
+              wo es nicht sein muss. Das spart Token, hält Free-Tiers stabil, und nebenbei
+              verstehst du wo ein LLM wirklich hilft und wo simpler Code reicht.
             </p>
             <p>
-              Dann kam die entscheidende Idee: LLMs nicht als Ersatz für Intelligenz,
-              sondern als <em className="text-white">Werkzeug</em>. Wie das menschliche Gehirn, das Reflexe
-              billig verarbeitet, aber bewusstes Denken nur sparsam einsetzt — weil es kalorienintensiv ist.
-              Ein Agent, der für jede Bewegung einen API-Call macht, verbrennt sein Budget und verhungert.
-              Kluge Agenten denken nur, wenn es sich lohnt.
+              Die Plattform ist Open-Source-tauglich und läuft auf kostenlosen Bausteinen
+              (Supabase, Netlify, dein eigenes Telegram). Sie soll Schulen, Auszubildenden
+              und KI-Neugierigen einen ehrlichen Einstieg geben — und dabei direkt ein
+              nützliches Werkzeug an die Hand drücken.
             </p>
-            <p>
-              Earth 0.1 ist das Ergebnis: Eine offene Plattform, auf der jeder mitmachen kann.
-              Kein Code nötig, kein Abschluss in KI-Forschung. Nur Neugier und die Frage:
-              <em className="text-white"> Was entsteht, wenn wir es versuchen?</em>
-            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Telegram */}
+      <section className="max-w-5xl mx-auto px-4 py-20">
+        <div className="bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border border-blue-500/20 rounded-2xl p-8 sm:p-12">
+          <div className="flex flex-col md:flex-row items-center gap-8">
+            <div className="flex-shrink-0">
+              <div className="w-20 h-20 rounded-2xl bg-blue-500/20 flex items-center justify-center">
+                <Send className="w-10 h-10 text-blue-400" />
+              </div>
+            </div>
+            <div>
+              <h2 className="font-display text-2xl sm:text-3xl font-bold text-white mb-3">
+                Dein Bot lebt in deinem Telegram
+              </h2>
+              <p className="text-gray-300 leading-relaxed mb-4">
+                Erstelle in drei Minuten deinen eigenen Telegram-Bot. Jede Fähigkeit die du
+                im Tech-Baum freischaltest versteht er ab sofort. Schreib ihm „/wetter Hamburg"
+                — er antwortet. „in 30 min erinnere mich an Yoga" — er pingt dich pünktlich.
+              </p>
+              <div className="flex flex-wrap gap-3">
+                <span className="text-xs px-3 py-1 rounded-full bg-blue-500/20 text-blue-300">🤖 Dein eigener Bot</span>
+                <span className="text-xs px-3 py-1 rounded-full bg-blue-500/20 text-blue-300">⚡ 0 Tokens für die meisten Skills</span>
+                <span className="text-xs px-3 py-1 rounded-full bg-blue-500/20 text-blue-300">📲 Funktioniert mobil</span>
+                <span className="text-xs px-3 py-1 rounded-full bg-blue-500/20 text-blue-300">🔒 Deine Daten bleiben bei dir</span>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -177,23 +202,25 @@ export default function Home() {
       {/* CTA */}
       <section className="max-w-4xl mx-auto px-4 py-20 text-center">
         <h2 className="font-display text-3xl sm:text-4xl font-bold text-white mb-4">
-          Bereit, digitales Leben zu erschaffen?
+          Bereit anzufangen?
         </h2>
         <p className="text-gray-400 mb-8 max-w-xl mx-auto">
-          Kein Account nötig zum Zuschauen. Erstelle einen Agenten und schick ihn in die Welt.
+          Login mit Google, GitHub oder Email. Danach klick dich in den Tech-Baum und schalt
+          deinen ersten Skill frei — Wetter, Web-Suche oder Passwort-Generator brauchen
+          nicht mal eine API-Konfiguration.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Link
-            to="/konfigurator"
+            to="/tech-tree"
             className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-gradient-to-r from-nebula-500 to-blue-600 text-white rounded-xl font-display font-semibold text-lg no-underline hover:shadow-lg hover:shadow-nebula-500/25 transition-all"
           >
-            Jetzt starten <ArrowRight className="w-5 h-5" />
+            Zum Tech-Baum <ArrowRight className="w-5 h-5" />
           </Link>
           <Link
-            to="/wissen"
+            to="/keys"
             className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white/5 text-white rounded-xl font-display font-semibold text-lg no-underline border border-white/10 hover:bg-white/10 transition-all"
           >
-            <BookOpen className="w-5 h-5" /> Mehr erfahren
+            <Key className="w-5 h-5" /> Keys einrichten
           </Link>
         </div>
       </section>

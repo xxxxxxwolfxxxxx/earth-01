@@ -1,0 +1,124 @@
+<h2>Achievement → Real-World-Tool Mapping</h2>
+<p class="subtitle">Was dein Agent in der Simulation lernt, kann er auch außerhalb für dich tun. Jedes Achievement entsperrt ein Tool im Chat (Telegram/WebChat).</p>
+
+<style>
+  .ach-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin: 16px 0;
+  }
+  .ach {
+    background: rgba(99,102,241,0.1);
+    border: 1px solid rgba(99,102,241,0.3);
+    border-radius: 10px;
+    padding: 14px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .ach-icon { font-size: 32px; flex-shrink: 0; line-height: 1; }
+  .ach-body { flex: 1; }
+  .ach-title { font-weight: 700; color: #fff; font-size: 14px; margin-bottom: 4px; }
+  .ach-tier { font-size: 10px; color: #a78bfa; text-transform: uppercase; letter-spacing: 0.5px; }
+  .ach-unlock { font-size: 11px; color: #fbbf24; margin: 4px 0; }
+  .ach-tool { font-size: 11px; color: #4ade80; }
+  .ach-desc { font-size: 11px; color: #cbd5e1; margin-top: 4px; }
+</style>
+
+<div class="ach-grid">
+  <div class="ach">
+    <div class="ach-icon">📚</div>
+    <div class="ach-body">
+      <div class="ach-title">Schriftgelehrte:r</div>
+      <div class="ach-tier">Tier 1 · Start-Achievement</div>
+      <div class="ach-unlock">🎯 Erforsche "Schrift"</div>
+      <div class="ach-tool">🔓 Tool: Web-Suche im Chat</div>
+      <div class="ach-desc">"Gisela, such mir Rezepte mit Auberginen."</div>
+    </div>
+  </div>
+
+  <div class="ach">
+    <div class="ach-icon">🕰️</div>
+    <div class="ach-body">
+      <div class="ach-title">Zeitmesser:in</div>
+      <div class="ach-tier">Tier 1</div>
+      <div class="ach-unlock">🎯 Baue ein Gebäude (b)</div>
+      <div class="ach-tool">🔓 Tool: Erinnerungen setzen</div>
+      <div class="ach-desc">"Erinnere mich um 18 Uhr an Yoga."</div>
+    </div>
+  </div>
+
+  <div class="ach">
+    <div class="ach-icon">🎨</div>
+    <div class="ach-body">
+      <div class="ach-title">Künstler:in</div>
+      <div class="ach-tier">Tier 2</div>
+      <div class="ach-unlock">🎯 Erforsche "Philosophie"</div>
+      <div class="ach-tool">🔓 Tool: Bilder generieren</div>
+      <div class="ach-desc">"Mal mir ein Bild von einem Sonnenuntergang."</div>
+    </div>
+  </div>
+
+  <div class="ach">
+    <div class="ach-icon">🤝</div>
+    <div class="ach-body">
+      <div class="ach-title">Diplomat:in</div>
+      <div class="ach-tier">Tier 2</div>
+      <div class="ach-unlock">🎯 Gründe eine Allianz</div>
+      <div class="ach-tool">🔓 Tool: Multi-Agent-Diskussion</div>
+      <div class="ach-desc">Frag mehrere Agenten gleichzeitig nach Meinungen.</div>
+    </div>
+  </div>
+
+  <div class="ach">
+    <div class="ach-icon">⚒️</div>
+    <div class="ach-body">
+      <div class="ach-title">Ingenieur:in</div>
+      <div class="ach-tier">Tier 3</div>
+      <div class="ach-unlock">🎯 Erforsche "Ingenieurwesen"</div>
+      <div class="ach-tool">🔓 Tool: Code/Berechnungen ausführen</div>
+      <div class="ach-desc">"Berechne meine Steuerlast für 2025."</div>
+    </div>
+  </div>
+
+  <div class="ach">
+    <div class="ach-icon">🌾</div>
+    <div class="ach-body">
+      <div class="ach-title">Versorger:in</div>
+      <div class="ach-tier">Tier 1</div>
+      <div class="ach-unlock">🎯 Baue eine Farm</div>
+      <div class="ach-tool">🔓 Tool: Einkaufsliste verwalten</div>
+      <div class="ach-desc">"Was hatte ich auf der Liste? Füge Milch hinzu."</div>
+    </div>
+  </div>
+
+  <div class="ach">
+    <div class="ach-icon">🧬</div>
+    <div class="ach-body">
+      <div class="ach-title">Patriarch:in</div>
+      <div class="ach-tier">Tier 2</div>
+      <div class="ach-unlock">🎯 3+ lebende Nachfahren</div>
+      <div class="ach-tool">🔓 Tool: Familien-Gedächtnis</div>
+      <div class="ach-desc">Agent erinnert sich an Personen aus deinem Leben.</div>
+    </div>
+  </div>
+
+  <div class="ach">
+    <div class="ach-icon">👑</div>
+    <div class="ach-body">
+      <div class="ach-title">Dynastie</div>
+      <div class="ach-tier">Tier 4 · Meta</div>
+      <div class="ach-unlock">🎯 Generation 5 erreicht</div>
+      <div class="ach-tool">🔓 Tool: Eigene Persönlichkeit</div>
+      <div class="ach-desc">Agent entwickelt einzigartigen Schreibstil, eigene Meinungen.</div>
+    </div>
+  </div>
+</div>
+
+<div style="background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.3); border-radius: 8px; padding: 12px; margin-top: 20px;">
+  <strong style="color: #fbbf24;">🔥 Die Schmerz-Mechanik:</strong>
+  <p style="font-size: 12px; color: #fde68a; margin-top: 4px;">Stirbt dein Hauptagent <strong>kinderlos</strong>, verlierst du das <strong>zuletzt freigeschaltete Achievement</strong>. Der neue Klon-Agent muss es selbst erneut erspielen. Stirbt er <strong>mit Erben</strong>, übernimmt der Erbe alle Achievements — kein Verlust.</p>
+</div>
+
+<p class="subtitle" style="margin-top:16px">Das ist ein erster Vorschlag. Passt das Mapping? Fehlen wichtige Tools? Sollen Achievements anders heißen?</p>

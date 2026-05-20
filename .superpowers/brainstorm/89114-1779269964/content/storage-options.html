@@ -1,0 +1,173 @@
+<h2>Cloud-Speicher als eigene Skills</h2>
+<p class="subtitle">User bringt seinen eigenen Speicher mit. Jede Anbindung lehrt was Neues — OAuth, REST-File-APIs, Versionierung. Hier eine Übersicht der realistischen Optionen.</p>
+
+<style>
+  .opts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
+    margin-top: 16px;
+  }
+  .opt {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px;
+    padding: 14px;
+    color: #e2e8f0;
+  }
+  .opt.rec {
+    background: rgba(74,222,128,0.08);
+    border-color: rgba(74,222,128,0.45);
+  }
+  .opt-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .opt-title { font-weight: 700; color: #fff; font-size: 14px; }
+  .opt-size { font-size: 11px; color: #4ade80; font-weight: 600; }
+  .opt-size.warn { color: #fbbf24; }
+  .opt-desc { font-size: 12px; color: #cbd5e1; margin-bottom: 8px; line-height: 1.5; }
+  .opt-learn { font-size: 11px; color: #a5b4fc; }
+  .opt-cons { font-size: 11px; color: #f87171; margin-top: 6px; }
+  .badge {
+    display: inline-block;
+    font-size: 9px;
+    background: rgba(167,139,250,0.18);
+    color: #c4b5fd;
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-left: 4px;
+  }
+</style>
+
+<h3 style="color:#fff; margin-top: 20px; font-size: 15px;">🟢 Top-3 Kandidaten</h3>
+<div class="opts-grid">
+
+  <div class="opt rec">
+    <div class="opt-head">
+      <div class="opt-title">📂 Google Drive</div>
+      <div class="opt-size">15 GB gratis</div>
+    </div>
+    <div class="opt-desc">
+      User loggt sich einmal per Google ein, der Agent darf Dateien in einem festen Ordner ablegen/lesen. Notizen werden zu echten Google-Docs, Bilder zu echten Drive-Files.
+    </div>
+    <div class="opt-learn">Lehrt: <strong>OAuth-Flow</strong>, <strong>Token-Refresh</strong>, REST-API für Files.</div>
+    <div class="opt-cons">Achtung: User braucht Google-Account. OAuth-App muss bei Google registriert sein (einmaliger Setup von dir).</div>
+  </div>
+
+  <div class="opt rec">
+    <div class="opt-head">
+      <div class="opt-title">🐙 GitHub-Repo</div>
+      <div class="opt-size">unbegrenzt (privat)</div>
+    </div>
+    <div class="opt-desc">
+      User legt ein privates Repo „mein-agent-memory" an, der Agent schreibt Notizen als Markdown-Dateien rein. Jede Änderung wird automatisch versioniert (Git-History).
+    </div>
+    <div class="opt-learn">Lehrt: <strong>Git-Konzepte</strong>, Commits, Versionierung, Personal Access Tokens.</div>
+    <div class="opt-cons">Bei zu vielen kleinen Commits kann GitHub eingreifen. Geeignet für Notizen/Tagebuch, nicht für Echtzeit-Logs.</div>
+  </div>
+
+  <div class="opt rec">
+    <div class="opt-head">
+      <div class="opt-title">🔵 OneDrive (Microsoft)</div>
+      <div class="opt-size">5 GB gratis</div>
+    </div>
+    <div class="opt-desc">
+      Wie Google Drive, aber Microsoft. Wer schon einen Microsoft-Account hat (Outlook, Xbox, Office Online) muss nichts Neues anlegen. Graph-API ist gut dokumentiert.
+    </div>
+    <div class="opt-learn">Lehrt: OAuth-Flow, Microsoft Graph API.</div>
+    <div class="opt-cons">5 GB ist enger als Google.</div>
+  </div>
+
+</div>
+
+<h3 style="color:#fff; margin-top: 24px; font-size: 15px;">🟡 Spezial-Use-Cases</h3>
+<div class="opts-grid">
+
+  <div class="opt">
+    <div class="opt-head">
+      <div class="opt-title">📄 Notion <span class="badge">workspace</span></div>
+      <div class="opt-size">unbegrenzt (privat)</div>
+    </div>
+    <div class="opt-desc">Agent schreibt in deine Notion-Seiten. Strukturierte Datenbanken, Markdown, geteilte Workspaces.</div>
+    <div class="opt-learn">Lehrt: Notion API, Block-basierte Inhalte.</div>
+  </div>
+
+  <div class="opt">
+    <div class="opt-head">
+      <div class="opt-title">📊 Google Sheets <span class="badge">tabellen</span></div>
+      <div class="opt-size">~10 Mio. Zellen</div>
+    </div>
+    <div class="opt-desc">Perfekt für strukturierte Daten: Einkaufslisten, Symptom-Tracker, Finanzen. User sieht alles in Tabellenform.</div>
+    <div class="opt-learn">Lehrt: Tabellen-APIs, Service-Account-Auth.</div>
+  </div>
+
+  <div class="opt">
+    <div class="opt-head">
+      <div class="opt-title">📎 Mega.nz <span class="badge">große files</span></div>
+      <div class="opt-size">20 GB gratis</div>
+    </div>
+    <div class="opt-desc">Größter kostenloser Speicher. Gut für generierte Bilder, Audio-Aufnahmen.</div>
+    <div class="opt-learn">Lehrt: End-to-End-Verschlüsselung, Bandbreiten-Limits.</div>
+    <div class="opt-cons">API ist umständlich, Bandbreite limitiert.</div>
+  </div>
+
+  <div class="opt">
+    <div class="opt-head">
+      <div class="opt-title">🟦 Cloudflare R2 <span class="badge">profis</span></div>
+      <div class="opt-size">10 GB gratis</div>
+    </div>
+    <div class="opt-desc">S3-kompatible Objekt-Speicher, keine Egress-Gebühr. Schnell wie ein CDN.</div>
+    <div class="opt-learn">Lehrt: S3-Protokoll, Buckets, Objekt-Speicher.</div>
+    <div class="opt-cons">Setup verlangt Kreditkarte hinterlegt (auch wenn nichts abgebucht wird) — Hürde für viele User.</div>
+  </div>
+
+</div>
+
+<h3 style="color:#fff; margin-top: 24px; font-size: 15px;">🔴 Eher nicht</h3>
+<div class="opts-grid">
+  <div class="opt" style="opacity:0.7">
+    <div class="opt-head">
+      <div class="opt-title">Dropbox</div>
+      <div class="opt-size warn">2 GB gratis</div>
+    </div>
+    <div class="opt-desc">Zu klein, OAuth ist komplex. Heute kaum noch sinnvoll.</div>
+  </div>
+  <div class="opt" style="opacity:0.7">
+    <div class="opt-head">
+      <div class="opt-title">file.io / transfer.sh</div>
+      <div class="opt-size warn">temporär</div>
+    </div>
+    <div class="opt-desc">Files verschwinden nach Download oder 14 Tagen. Für persistentes Gedächtnis ungeeignet.</div>
+  </div>
+</div>
+
+<h3 style="color:#fff; margin-top: 24px; font-size: 15px;">💡 Vorschlag für den Tech-Tree</h3>
+
+<div style="background: rgba(99,102,241,0.08); border:1px solid rgba(99,102,241,0.3); border-radius:10px; padding: 14px; font-size: 13px; line-height: 1.6; color: #cbd5e1; margin-top: 10px;">
+
+  Als <strong>eigener Tier-2-Ast „Speicher anbinden"</strong> im Tech-Tree:
+  <ul style="margin: 8px 0 0 0; padding-left: 20px;">
+    <li>📂 Google Drive (15 GB) — Lehr-Modul: OAuth-Flow Schritt für Schritt</li>
+    <li>🐙 GitHub-Repo (unbegrenzt) — Lehr-Modul: Git-Grundkonzepte</li>
+    <li>📊 Google Sheets — Lehr-Modul: API-Service-Accounts</li>
+  </ul>
+  Diese Skills sind <strong>Voraussetzung für „Großes Gedächtnis"</strong> — wer mehr als die Plattform-Standardablage will, muss eines davon anbinden.
+
+  <br><br>
+  Die Plattform bekommt automatisch einen <strong>Storage-Adapter</strong>: egal welchen Cloud-Speicher der User verbindet, der Agent nutzt eine einheitliche API. Du als Projektleiter musst nichts erweitern wenn neue Provider dazu kommen.
+</div>
+
+<div class="options" style="margin-top:18px">
+  <div class="option" data-choice="ok" onclick="toggleSelect(this)">
+    <div class="letter">✓</div>
+    <div class="content"><h3>Top-3 als Skills integrieren</h3><p>Google Drive + GitHub + OneDrive werden eigene Skills im Tier 2.</p></div>
+  </div>
+  <div class="option" data-choice="more" onclick="toggleSelect(this)">
+    <div class="letter">+</div>
+    <div class="content"><h3>Alle realistischen integrieren</h3><p>Auch Notion, Sheets, Mega. User kann frei wählen.</p></div>
+  </div>
+  <div class="option" data-choice="one" onclick="toggleSelect(this)">
+    <div class="letter">1</div>
+    <div class="content"><h3>Erstmal nur einen</h3><p>Google Drive zuerst (größter Free-Speicher + bekanntester Login). Andere folgen später.</p></div>
+  </div>
+</div>
