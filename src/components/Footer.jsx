@@ -1,4 +1,4 @@
-import { Globe, Heart } from 'lucide-react'
+import { Globe, Heart, Network, BookOpen, Key, Sparkles } from 'lucide-react'
 
 function GithubIcon({ className }) {
   return (
@@ -13,39 +13,72 @@ export default function Footer() {
     <footer className="border-t border-white/5 mt-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+          {/* Brand */}
           <div className="md:col-span-2">
             <div className="flex items-center gap-2 mb-3">
-              <Globe className="w-5 h-5 text-blue-400" />
+              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-emerald-500 flex items-center justify-center">
+                <Globe className="w-4 h-4 text-white" />
+              </div>
               <span className="font-display font-bold text-white">Earth 0.1</span>
             </div>
-            <p className="text-sm text-gray-400 max-w-md">
-              Ein Open-Source-Experiment zur Erschaffung digitalen Lebens.
-              Inspiriert von Conway's Game of Life, angetrieben von der Community.
+            <p className="text-sm text-gray-400 max-w-md leading-relaxed">
+              Lernspiel über KI, Agenten und das Internet. Du klickst dich durch einen Tech-Baum,
+              verstehst nebenbei wie KI funktioniert und schaltest dabei echte Werkzeuge frei,
+              die dein Telegram-Bot für dich nutzt.
             </p>
+            <div className="mt-4 flex flex-wrap gap-2 text-[10px]">
+              <span className="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">Open Source</span>
+              <span className="px-2 py-1 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/20">Free Tier</span>
+              <span className="px-2 py-1 rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/20">Mobile-first</span>
+            </div>
           </div>
+
+          {/* Plattform */}
           <div>
-            <h4 className="font-display text-white text-sm font-bold mb-3">Projekt</h4>
+            <h4 className="font-display text-white text-sm font-bold mb-3">Plattform</h4>
             <ul className="space-y-2 text-sm text-gray-400 list-none m-0 p-0">
-              <li><a href="/wissen" className="hover:text-white transition">Wissensbasis</a></li>
-              <li><a href="/konfigurator" className="hover:text-white transition">Agent erstellen</a></li>
-              <li><a href="/welt" className="hover:text-white transition">Welt beobachten</a></li>
+              <li><a href="/tech-tree" className="hover:text-white transition flex items-center gap-1.5"><Network className="w-3.5 h-3.5" /> Tech-Baum</a></li>
+              <li><a href="/wissen" className="hover:text-white transition flex items-center gap-1.5"><BookOpen className="w-3.5 h-3.5" /> Wissen</a></li>
+              <li><a href="/provider" className="hover:text-white transition flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5" /> Anbieter</a></li>
+              <li><a href="/keys" className="hover:text-white transition flex items-center gap-1.5"><Key className="w-3.5 h-3.5" /> Schlüssel</a></li>
             </ul>
           </div>
+
+          {/* Weiterführend */}
           <div>
             <h4 className="font-display text-white text-sm font-bold mb-3">Weiterführend</h4>
             <ul className="space-y-2 text-sm text-gray-400 list-none m-0 p-0">
-              <li><a href="https://de.wikipedia.org/wiki/Conways_Spiel_des_Lebens" target="_blank" rel="noopener" className="hover:text-white transition">Conway's Game of Life</a></li>
-              <li><a href="https://de.wikipedia.org/wiki/K%C3%BCnstliches_Leben" target="_blank" rel="noopener" className="hover:text-white transition">Artificial Life</a></li>
-              <li><a href="https://github.com/xxxxxxwolfxxxxx/earth-01" target="_blank" rel="noopener" className="hover:text-white transition flex items-center gap-1"><GithubIcon className="w-3 h-3" /> GitHub</a></li>
+              <li>
+                <a href="https://github.com/xxxxxxwolfxxxxx/earth-01" target="_blank" rel="noopener noreferrer" className="hover:text-white transition flex items-center gap-1.5">
+                  <GithubIcon className="w-3.5 h-3.5" /> GitHub
+                </a>
+              </li>
+              <li>
+                <a href="https://core.telegram.org/bots" target="_blank" rel="noopener noreferrer" className="hover:text-white transition">
+                  Telegram Bot API
+                </a>
+              </li>
+              <li>
+                <a href="https://supabase.com" target="_blank" rel="noopener noreferrer" className="hover:text-white transition">
+                  Supabase
+                </a>
+              </li>
+              <li>
+                <a href="https://crontab.guru" target="_blank" rel="noopener noreferrer" className="hover:text-white transition">
+                  Cron-Syntax
+                </a>
+              </li>
             </ul>
           </div>
         </div>
+
         <div className="border-t border-white/5 mt-8 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-xs text-gray-500">
-            Earth 0.1 &copy; {new Date().getFullYear()} Matthias Dührkop. Alle Rechte vorbehalten. Mitmachen erwünscht — deine Agenten gehören dir.
+            Earth 0.1 &copy; {new Date().getFullYear()} Matthias Dührkop ·
+            Daten bleiben bei dir · Affiliate-Links sind <span className="text-amber-300/80">markiert</span>
           </p>
           <p className="text-xs text-gray-500 flex items-center gap-1">
-            Gebaut mit <Heart className="w-3 h-3 text-red-400" /> von der Community
+            Gebaut mit <Heart className="w-3 h-3 text-red-400" /> für Neugierige
           </p>
         </div>
       </div>
