@@ -100,8 +100,20 @@ Deno.serve(async (_req) => {
   const fired = await processReminders(supabase);
   const briefings = await processBriefings(supabase);
 
+  let orchestratorResult: any = null;
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const r = await fetch(`${supabaseUrl}/functions/v1/swarm-orchestrator`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!}` },
+    });
+    orchestratorResult = await r.json().catch(() => null);
+  } catch (e) {
+    console.warn("Orchestrator-Call fehlgeschlagen:", (e as Error).message);
+  }
+
   return new Response(
-    JSON.stringify({ fired, briefings }),
+    JSON.stringify({ fired, briefings, swarm: orchestratorResult }),
     { headers: { "Content-Type": "application/json" } },
   );
 });

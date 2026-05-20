@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Database, Cloud, Unlink, LogIn, CheckCircle2, Sunrise, Drama, Upload } from 'lucide-react'
-import { fetchCloudStatus, callOauthCloud, setRagSources, fetchBriefing, saveBriefing, deleteBriefing, fetchPersona, savePersona, uploadFile } from '../lib/cloudService'
+import { fetchCloudStatus, callOauthCloud, setRagSources, fetchBriefing, saveBriefing, deleteBriefing, fetchPersona, savePersona, uploadFile, fetchDonateSettings, saveDonateSettings, fetchMyContributions } from '../lib/cloudService'
 import { useAuth } from '../contexts/AuthContext'
 
 const SOURCE_LABELS = {
@@ -157,6 +157,7 @@ export default function Data() {
 
       {connected && <FileUploadSection />}
       <PersonaSection />
+      <DonateSection />
       <BriefingSection />
 
       {connected && (
@@ -419,6 +420,86 @@ function BriefingSection() {
           </button>
         )}
       </div>
+    </section>
+  )
+}
+
+function DonateSection() {
+  const [s, setS] = useState(null)
+  const [contributions, setContributions] = useState(0)
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState('')
+
+  useEffect(() => {
+    fetchDonateSettings().then(d => setS(d ?? { donate_tokens: false, donate_threshold: 30, donate_show_credit: false, swarm_jobs_today: 0 }))
+    fetchMyContributions().then(setContributions)
+  }, [])
+
+  if (!s) return null
+
+  async function save() {
+    setSaving(true); setMsg('')
+    try { await saveDonateSettings(s); setMsg('Gespeichert ✓') }
+    catch (e) { setMsg(`Fehler: ${e.message}`) }
+    setSaving(false)
+  }
+
+  return (
+    <section className="mb-8 p-5 rounded-2xl border border-emerald-500/20 bg-emerald-500/5">
+      <div className="flex items-center justify-between mb-3 gap-3">
+        <h2 className="font-display text-white text-lg font-bold flex items-center gap-2">
+          🌱 Schwarm-Beitrag
+        </h2>
+        {s.donate_tokens && <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">Aktiv</span>}
+      </div>
+      <p className="text-gray-400 text-sm mb-4">
+        Spende dein verbleibendes Tagessommittel kurz vor Provider-Reset.
+        Dein Bot trägt zur kollektiven Artikel-Pipeline bei. Max 3 Jobs/Tag.
+      </p>
+      {msg && <div className="mb-3 text-xs text-blue-200">{msg}</div>}
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
+        <div className="p-3 rounded-lg bg-white/5">
+          <div className="text-[10px] uppercase tracking-wider text-gray-400">Mein Beitrag</div>
+          <div className="font-display text-2xl text-emerald-300 mt-1">{contributions}</div>
+        </div>
+        <div className="p-3 rounded-lg bg-white/5">
+          <div className="text-[10px] uppercase tracking-wider text-gray-400">Jobs heute</div>
+          <div className="font-display text-2xl text-amber-300 mt-1">{s.swarm_jobs_today} / 3</div>
+        </div>
+        <div className="p-3 rounded-lg bg-white/5 col-span-2 sm:col-span-1">
+          <div className="text-[10px] uppercase tracking-wider text-gray-400">Schwelle</div>
+          <div className="font-display text-2xl text-blue-300 mt-1">{s.donate_threshold}%</div>
+        </div>
+      </div>
+
+      <label className="flex items-center gap-2 mb-3 cursor-pointer">
+        <input type="checkbox" checked={s.donate_tokens}
+          onChange={(e) => setS({...s, donate_tokens: e.target.checked})}
+          className="w-4 h-4" />
+        <span className="text-sm text-white">Token-Spende aktivieren</span>
+      </label>
+
+      <label className="block mb-3">
+        <span className="text-xs text-gray-400">Spende-Schwelle: {s.donate_threshold}%</span>
+        <input type="range" min="10" max="90" step="5"
+          value={s.donate_threshold}
+          onChange={(e) => setS({...s, donate_threshold: parseInt(e.target.value)})}
+          className="w-full mt-1" />
+        <span className="text-[10px] text-gray-500">Spende, wenn mindestens {s.donate_threshold}% des Tageskontingents übrig.</span>
+      </label>
+
+      <label className="flex items-center gap-2 mb-4 cursor-pointer">
+        <input type="checkbox" checked={s.donate_show_credit}
+          onChange={(e) => setS({...s, donate_show_credit: e.target.checked})}
+          className="w-4 h-4" />
+        <span className="text-sm text-white">Mit meinem Namen erwähnt werden (statt anonym)</span>
+      </label>
+
+      <button onClick={save} disabled={saving}
+        className="px-4 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-100 rounded-lg border border-emerald-500/30 disabled:opacity-50 text-sm">
+        {saving ? 'Speichere…' : 'Speichern'}
+      </button>
     </section>
   )
 }

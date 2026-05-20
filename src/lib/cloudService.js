@@ -128,3 +128,32 @@ export async function savePersona(p) {
     bot_extra: p.bot_extra?.trim() || null,
   }).eq('id', user.id)
 }
+
+// ─── Schwarm-Donation ───
+export async function fetchDonateSettings() {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+  const { data } = await supabase.from('profiles')
+    .select('donate_tokens, donate_threshold, donate_show_credit, swarm_jobs_today')
+    .eq('id', user.id).single()
+  return data
+}
+
+export async function saveDonateSettings(s) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Login')
+  await supabase.from('profiles').update({
+    donate_tokens: !!s.donate_tokens,
+    donate_threshold: Math.min(90, Math.max(10, s.donate_threshold ?? 30)),
+    donate_show_credit: !!s.donate_show_credit,
+  }).eq('id', user.id)
+}
+
+export async function fetchMyContributions() {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return 0
+  const { count } = await supabase.from('article_jobs')
+    .select('id', { count: 'exact', head: true })
+    .eq('assigned_to', user.id).eq('status', 'done')
+  return count ?? 0
+}

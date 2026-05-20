@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Menu, X, Globe, BookOpen, LogIn, LogOut, User, Home as HomeIcon, Network, Key, Sparkles, Database } from 'lucide-react'
+import { Menu, X, Globe, BookOpen, LogIn, LogOut, User, Home as HomeIcon, Network, Key, Sparkles, Database, Sprout } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 
 function GithubIcon({ className }) {
@@ -15,6 +15,7 @@ const links = [
   { to: '/', label: 'Home', icon: HomeIcon },
   { to: '/wissen', label: 'Wissen', icon: BookOpen },
   { to: '/tech-tree', label: 'Tech-Baum', icon: Network },
+  { to: '/erde-lernt', label: 'Earth lernt', icon: Sprout },
   { to: '/provider', label: 'Anbieter', icon: Sparkles },
   { to: '/keys', label: 'Keys', icon: Key },
   { to: '/data', label: 'Daten', icon: Database },
