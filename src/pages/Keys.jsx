@@ -7,6 +7,8 @@ import {
   SERVICE_CATALOG, CATEGORIES,
 } from '../lib/keyService'
 import { useAuth } from '../contexts/AuthContext'
+import QuotaWidget from '../components/QuotaWidget'
+import { fetchUserSkills } from '../lib/skillService'
 
 function mask(key) {
   if (!key) return ''
@@ -23,10 +25,14 @@ export default function Keys() {
   const [reveal, setReveal] = useState({})
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
+  const [hasQuotaSkill, setHasQuotaSkill] = useState(false)
 
   useEffect(() => {
     if (!user) { setLoading(false); return }
     fetchUserKeys().then(k => { setKeys(k ?? {}); setLoading(false) })
+    fetchUserSkills().then(us => {
+      setHasQuotaSkill(us.some(s => s.skill_id === 'quota_check'))
+    })
   }, [user])
 
   // Auth-Gate
@@ -143,6 +149,13 @@ export default function Keys() {
         <Stat label="Offen" value={totalServices - filledServices} accent="amber" />
         <Stat label="Sicher" value="🔒" accent="purple" sub="RLS" />
       </div>
+
+      {/* Quota-Widget (sichtbar wenn Skill quota_check freigeschaltet) */}
+      {hasQuotaSkill && (
+        <div className="max-w-3xl mx-auto">
+          <QuotaWidget />
+        </div>
+      )}
 
       {/* Privacy-Notice */}
       <div className="max-w-3xl mx-auto mb-6 p-4 rounded-xl bg-blue-500/5 border border-blue-500/20 flex items-start gap-3">

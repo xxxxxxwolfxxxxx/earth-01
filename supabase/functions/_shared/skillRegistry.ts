@@ -23,6 +23,7 @@ export const SKILL_REGISTRY: SkillMeta[] = [
   { id: 'pomodoro',      path: 'automation', pattern: /(\/pomodoro|^pomodoro)/i },
   { id: 'joke_quote',    path: 'spielerei',  pattern: /(\/witz|\/joke|^witz|^zitat)/i },
   { id: 'ask_memory',    path: 'llm',        pattern: /(?:^|\s)(?:\/frag|frag)\s+(.+)/i, requires_keys: ['llm_api_key','huggingface_key'] },
+  { id: 'quota_check',   path: 'spielerei',  pattern: /(?:\/quota|\/limits|^quota$|^limits$|wie viel\s+(?:token|quota))/i },
 ];
 
 export function matchSkill(message: string): SkillMeta | null {

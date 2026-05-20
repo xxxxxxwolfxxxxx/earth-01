@@ -212,6 +212,7 @@ export async function executeSkill(skill_id: string, ctx: SkillContext): Promise
     case "reminder": return skillReminder(ctx);
     case "pomodoro": return skillPomodoro(ctx);
     case "ask_memory": return skillAskMemory(ctx);
+    case "quota_check": return skillQuotaCheck(ctx);
     default: return { reply: BOT.unknown_command() };
   }
 }
@@ -312,4 +313,125 @@ export async function skillAskMemory(ctx: SkillContext): Promise<SkillResult> {
   } catch (e) {
     return { reply: `🧠 Fehler beim Erinnern: ${e.message}` };
   }
+}
+
+// ─── Quota-Check: Free-Tier-Limits aller Provider ─────────────
+
+function formatBar(used: number | undefined, limit: number | undefined): string {
+  if (used === undefined || limit === undefined || limit === 0) return "";
+  const pct = Math.min(100, Math.round((used / limit) * 100));
+  const filled = Math.round(pct / 10);
+  return ` [${"█".repeat(filled)}${"░".repeat(10 - filled)}] ${pct}%`;
+}
+
+export async function skillQuotaCheck(ctx: SkillContext): Promise<SkillResult> {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  // Service-Role-Token kann hier nicht den userId-Header senden, daher selbst aufrufen:
+  // wir rufen die Function direkt mit Service-Role-Authentication an UND geben user_id mit?
+  // Stattdessen einfacher: direkt aus dem Profil lesen und Probes hier inline machen.
+  // Aber die Function existiert schon — wir geben User-Token weiter. Skill-Context hat den nicht.
+  // Pragmatisch: hier inline die Probes nachbauen wäre Duplication.
+  // Stattdessen: Service-Role-Call mit user_id Body — aber das ändert die Function.
+  // Einfachster Weg: HTTP-Call mit Supabase-Anon-Key + Auth-Header das User-JWT mitgibt.
+  // Im Telegram-Webhook-Context haben wir das nicht. Also: Function umstellen auf
+  // service_role-Aufruf mit user_id im Body. Hier Workaround: direkter DB-Read + inline Probes.
+  const { data: profile } = await ctx.supabase
+    .from("profiles")
+    .select("llm_api_key, huggingface_key, elevenlabs_key, deepl_key, replicate_key, stability_key, resend_api_key, openweather_key")
+    .eq("id", ctx.user_id).single();
+  if (!profile) return { reply: "Profil nicht gefunden." };
+
+  const lines: string[] = ["📊 <b>Deine Free-Tier-Limits</b>", ""];
+  const probes: Promise<string>[] = [];
+
+  if (profile.llm_api_key) {
+    probes.push((async () => {
+      const k = profile.llm_api_key;
+      const prefix = k.startsWith("gsk_") ? "Groq"
+        : k.startsWith("sk-or-") ? "OpenRouter"
+        : k.startsWith("nvapi-") ? "NVIDIA"
+        : k.startsWith("sk-ant-") ? "Anthropic"
+        : k.startsWith("sk-") ? "OpenAI"
+        : "LLM";
+      const base = k.startsWith("gsk_") ? "https://api.groq.com/openai/v1"
+        : k.startsWith("sk-or-") ? "https://openrouter.ai/api/v1"
+        : k.startsWith("nvapi-") ? "https://integrate.api.nvidia.com/v1"
+        : k.startsWith("sk-") ? "https://api.openai.com/v1"
+        : null;
+      if (!base) return `🧠 ${prefix}: kein Live-Probe möglich`;
+      try {
+        const r = await fetch(`${base}/models`, { headers: { Authorization: `Bearer ${k}` }});
+        if (!r.ok) return `🧠 ${prefix}: HTTP ${r.status}`;
+        const remT = r.headers.get("x-ratelimit-remaining-tokens");
+        const limT = r.headers.get("x-ratelimit-limit-tokens");
+        if (remT && limT) {
+          return `🧠 ${prefix}: ${remT}/${limT} Tokens/min${formatBar(Number(limT)-Number(remT), Number(limT))}`;
+        }
+        return `🧠 ${prefix}: aktiv`;
+      } catch { return `🧠 ${prefix}: Fehler`; }
+    })());
+  }
+
+  if (profile.elevenlabs_key) {
+    probes.push((async () => {
+      try {
+        const r = await fetch("https://api.elevenlabs.io/v1/user", { headers: { "xi-api-key": profile.elevenlabs_key }});
+        if (!r.ok) return `🔊 ElevenLabs: HTTP ${r.status}`;
+        const j: any = await r.json();
+        const used = j?.subscription?.character_count ?? 0;
+        const limit = j?.subscription?.character_limit ?? 0;
+        return `🔊 ElevenLabs: ${used}/${limit} Zeichen/Monat${formatBar(used, limit)}`;
+      } catch { return `🔊 ElevenLabs: Fehler`; }
+    })());
+  }
+
+  if (profile.deepl_key) {
+    probes.push((async () => {
+      const base = profile.deepl_key.endsWith(":fx") ? "https://api-free.deepl.com/v2" : "https://api.deepl.com/v2";
+      try {
+        const r = await fetch(`${base}/usage`, { headers: { Authorization: `DeepL-Auth-Key ${profile.deepl_key}` }});
+        if (!r.ok) return `🌐 DeepL: HTTP ${r.status}`;
+        const j: any = await r.json();
+        return `🌐 DeepL: ${j.character_count}/${j.character_limit} Zeichen/Monat${formatBar(j.character_count, j.character_limit)}`;
+      } catch { return `🌐 DeepL: Fehler`; }
+    })());
+  }
+
+  if (profile.stability_key) {
+    probes.push((async () => {
+      try {
+        const r = await fetch("https://api.stability.ai/v1/user/balance", { headers: { Authorization: `Bearer ${profile.stability_key}` }});
+        if (!r.ok) return `✨ Stability: HTTP ${r.status}`;
+        const j: any = await r.json();
+        return `✨ Stability: ${Math.round(j.credits)} Credits übrig`;
+      } catch { return `✨ Stability: Fehler`; }
+    })());
+  }
+
+  if (profile.huggingface_key) {
+    probes.push((async () => {
+      try {
+        const r = await fetch("https://huggingface.co/api/whoami-v2", { headers: { Authorization: `Bearer ${profile.huggingface_key}` }});
+        if (!r.ok) return `🤗 Hugging Face: HTTP ${r.status}`;
+        const j: any = await r.json();
+        return `🤗 Hugging Face: ${j.name ?? "User"} · ${j.plan ?? "Free"}`;
+      } catch { return `🤗 Hugging Face: Fehler`; }
+    })());
+  }
+
+  if (profile.openweather_key) {
+    probes.push((async () => {
+      try {
+        const r = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=Berlin&appid=${encodeURIComponent(profile.openweather_key)}`);
+        return r.ok ? `🌤️ OpenWeather: aktiv (1000/Tag)` : `🌤️ OpenWeather: HTTP ${r.status}`;
+      } catch { return `🌤️ OpenWeather: Fehler`; }
+    })());
+  }
+
+  if (probes.length === 0) {
+    return { reply: "Keine Provider-Keys hinterlegt. Schau auf /keys vorbei." };
+  }
+
+  const results = await Promise.all(probes);
+  return { reply: lines.concat(results).join("\n") };
 }
