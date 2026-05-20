@@ -65,3 +65,19 @@
   0% { transform: translate(-50%, -50%) scale(1); }
   100% { transform: translate(-45%, -55%) scale(1.1); }
 }
+
+/* Mini-Wiki: anklickbare Glossar-Begriffe in Lesson-Texten */
+.term {
+  color: #a5b4fc;
+  border-bottom: 1px dashed rgba(165, 180, 252, 0.45);
+  cursor: help;
+  padding: 0 1px;
+  transition: all 150ms;
+}
+.term:hover, .term:focus {
+  color: #c7d2fe;
+  border-bottom-color: rgba(199, 210, 254, 0.9);
+  background: rgba(124, 58, 237, 0.08);
+  border-radius: 3px;
+  outline: none;
+}
