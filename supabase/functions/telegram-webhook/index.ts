@@ -5,6 +5,7 @@ import { BOT } from "../_shared/botMessages.ts";
 import { transcribeTelegramVoice } from "../_shared/transcribe.ts";
 import { ingestNote } from "../_shared/memoryIngest.ts";
 import { findRelevant } from "../_shared/ragQuery.ts";
+import { synthesize } from "../_shared/tts.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -40,7 +41,9 @@ Deno.serve(async (req) => {
 
   // ── Voice / Audio: transkribieren und wie Text weiterbehandeln ──
   let text = (msg.text ?? "").trim();
+  let inputWasVoice = false;
   if (!text && (msg.voice || msg.audio)) {
+    inputWasVoice = true;
     const voice = msg.voice ?? msg.audio;
     const transcript = await transcribeTelegramVoice({
       botToken: profile.telegram_bot_token,
@@ -126,6 +129,9 @@ Deno.serve(async (req) => {
       if (result.image) {
         await sendTelegramPhoto(profile.telegram_bot_token, msg.chat.id, result.image, result.imageCaption ?? "");
       }
+      if (result.voice) {
+        await sendTelegramAudio(profile.telegram_bot_token, msg.chat.id, result.voice, result.voiceCaption ?? "");
+      }
       await sendTelegram(profile.telegram_bot_token, msg.chat.id,
         `${result.reply}\n\n✓ Skill '${skill.id}' freigeschaltet — schau auf der Plattform den Tech-Tree an.`);
       return new Response("ok-verified", { headers: CORS });
@@ -142,6 +148,27 @@ Deno.serve(async (req) => {
   if (result.image) {
     await sendTelegramPhoto(profile.telegram_bot_token, msg.chat.id, result.image, result.imageCaption ?? "");
     if (result.reply) {
+      await sendTelegram(profile.telegram_bot_token, msg.chat.id, result.reply);
+    }
+  } else if (result.voice) {
+    await sendTelegramAudio(profile.telegram_bot_token, msg.chat.id, result.voice, result.voiceCaption ?? "");
+    if (result.reply) {
+      await sendTelegram(profile.telegram_bot_token, msg.chat.id, result.reply);
+    }
+  } else if (inputWasVoice && result.reply && profile.elevenlabs_key) {
+    // Mirror-Modus: User sprach, Bot spricht zurück — wenn voice_out freigeschaltet
+    const { data: hasVoiceOut } = await supabase
+      .from("user_skills").select("skill_id")
+      .eq("user_id", profile.id).eq("skill_id", "voice_out").maybeSingle();
+    if (hasVoiceOut) {
+      const tts = await synthesize(result.reply, profile.elevenlabs_key);
+      if (tts.ok && tts.blob) {
+        await sendTelegramAudio(profile.telegram_bot_token, msg.chat.id, tts.blob, "");
+      } else {
+        // Fallback Text
+        await sendTelegram(profile.telegram_bot_token, msg.chat.id, result.reply);
+      }
+    } else {
       await sendTelegram(profile.telegram_bot_token, msg.chat.id, result.reply);
     }
   } else {
@@ -206,4 +233,18 @@ async function sendTelegramPhoto(token: string, chat_id: any, blob: Blob, captio
       body: form,
     });
   } catch (e) { console.warn("Telegram sendPhoto failed:", e); }
+}
+
+async function sendTelegramAudio(token: string, chat_id: any, blob: Blob, caption: string): Promise<void> {
+  if (!token || !chat_id) return;
+  try {
+    const form = new FormData();
+    form.append("chat_id", String(chat_id));
+    if (caption) form.append("caption", caption);
+    form.append("audio", blob, "reply.mp3");
+    await fetch(`https://api.telegram.org/bot${token}/sendAudio`, {
+      method: "POST",
+      body: form,
+    });
+  } catch (e) { console.warn("Telegram sendAudio failed:", e); }
 }

@@ -6,6 +6,7 @@ import { BOT } from "./botMessages.ts";
 import { findRelevant, QueryHit } from "./ragQuery.ts";
 import { CloudConfig } from "./cloudAdapters.ts";
 import { generateImage } from "./imageGen.ts";
+import { synthesize } from "./tts.ts";
 
 export interface SkillContext {
   supabase: any;
@@ -17,6 +18,8 @@ export interface SkillResult {
   reply: string;
   image?: Blob;
   imageCaption?: string;
+  voice?: Blob;
+  voiceCaption?: string;
 }
 
 // ─── Pattern B: Web-APIs ──────────────────────────────────
@@ -217,6 +220,7 @@ export async function executeSkill(skill_id: string, ctx: SkillContext): Promise
     case "ask_memory": return skillAskMemory(ctx);
     case "quota_check": return skillQuotaCheck(ctx);
     case "image_gen": return skillImageGen(ctx);
+    case "voice_out": return skillVoiceOut(ctx);
     default: return { reply: BOT.unknown_command() };
   }
 }
@@ -471,4 +475,28 @@ export async function skillImageGen(ctx: SkillContext): Promise<SkillResult> {
     image: result.blob,
     imageCaption: `🎨 „${prompt}"  ·  ${result.provider}/${result.model}`,
   };
+}
+
+// ─── Voice-Out: ElevenLabs TTS für /sage und Mirror-Modus ──────
+
+export async function skillVoiceOut(ctx: SkillContext): Promise<SkillResult> {
+  const m = ctx.message.match(/(?:\/sage|\/voice|sag(?:'s)?|sprich)\s+(.+)/i);
+  const text = (m?.[1] ?? "").trim();
+  if (!text) {
+    return { reply: "Was soll dein Bot sagen? Probier: /sage Hallo, wie geht's?" };
+  }
+
+  const { data: profile } = await ctx.supabase
+    .from("profiles")
+    .select("elevenlabs_key")
+    .eq("id", ctx.user_id).single();
+  if (!profile?.elevenlabs_key) {
+    return { reply: "Erst ElevenLabs-Key auf /keys hinterlegen — gibt 10.000 Zeichen gratis/Monat." };
+  }
+
+  const result = await synthesize(text, profile.elevenlabs_key);
+  if (!result.ok || !result.blob) {
+    return { reply: `🔊 TTS fehlgeschlagen: ${result.error ?? "Unbekannt"}` };
+  }
+  return { reply: "", voice: result.blob, voiceCaption: `🔊 „${text}"` };
 }
