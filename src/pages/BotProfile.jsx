@@ -2,10 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Bot, Key, Send, Sprout, Zap, Network, BookOpen, LogIn, CheckCircle2,
-  Database, Cloud, Sparkles, Activity,
+  Database, Cloud, Sparkles, Activity, Briefcase, Home as HomeIcon, Coins, Download,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
+import { fetchWorkStatus, setBotAtWork, fetchMyMammothTasks, startMammothWebsite } from '../lib/cloudService'
 
 export default function BotProfile() {
   const { user, loading: authLoading } = useAuth()
@@ -166,6 +167,9 @@ export default function BotProfile() {
         </div>
       </section>
 
+      {/* Phase 4: Bot-Arbeit + Mammutaufgaben */}
+      <WorkSection />
+
       {/* Top Skills */}
       {topSkills.length > 0 && (
         <section className="mb-8 p-5 rounded-2xl border border-white/10 bg-white/[0.02]">
@@ -278,4 +282,166 @@ function pathLabel(path) {
     spielerei: 'Werkzeuge',
   }
   return m[path] ?? path
+}
+
+// ─── Phase 4: WorkSection (Bot-Status + Mammutaufgaben) ─────────────────
+
+function WorkSection() {
+  const [status, setStatus] = useState(null)
+  const [tasks, setTasks] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+  const [briefForm, setBriefForm] = useState({ title: '', tagline: '', tone: 'minimal' })
+  const [showForm, setShowForm] = useState(false)
+
+  async function reload() {
+    const [s, t] = await Promise.all([fetchWorkStatus(), fetchMyMammothTasks()])
+    setStatus(s); setTasks(t); setLoading(false)
+  }
+  useEffect(() => { reload() }, [])
+
+  if (loading) return null
+  if (!status) return null
+
+  async function toggleWork() {
+    setBusy(true); setMsg('')
+    try {
+      await setBotAtWork(!status.bot_at_work)
+      await reload()
+      setMsg(status.bot_at_work ? '🏠 Bot ist zurück.' : '🤝 Bot ist los — pickt jetzt Jobs.')
+    } catch (e) { setMsg(`Fehler: ${e.message}`) }
+    setBusy(false)
+  }
+
+  async function submitBrief() {
+    if (!briefForm.title.trim()) return
+    setBusy(true); setMsg('')
+    try {
+      const r = await startMammothWebsite(briefForm)
+      setMsg(`🌐 Website-Projekt gestartet! ${r.jobs_created} Jobs in der Pipeline.`)
+      setBriefForm({ title: '', tagline: '', tone: 'minimal' })
+      setShowForm(false)
+      await reload()
+    } catch (e) { setMsg(`Fehler: ${e.message}`) }
+    setBusy(false)
+  }
+
+  const credits = Number(status.job_credits ?? 0)
+  const canStart = credits >= 50
+
+  const startedAgo = status.bot_work_started_at
+    ? Math.floor((Date.now() - new Date(status.bot_work_started_at).getTime()) / 60_000)
+    : null
+
+  return (
+    <section className="mb-8 p-5 rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 to-cyan-500/5">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="font-display text-white text-lg font-bold flex items-center gap-2">
+          <Briefcase className="w-5 h-5 text-emerald-400" /> Bot-Arbeit & Mammutaufgaben
+        </h2>
+        <div className="flex items-center gap-2 text-amber-300 font-display font-bold text-xl">
+          <Coins className="w-5 h-5" /> {credits.toFixed(1)}
+        </div>
+      </div>
+
+      {msg && <div className="mb-3 text-xs text-blue-200 bg-blue-500/10 rounded p-2">{msg}</div>}
+
+      {/* Bot-Status-Box */}
+      <div className={`p-4 rounded-xl border mb-4 ${status.bot_at_work
+        ? 'border-emerald-500/40 bg-emerald-500/10 animate-pulse'
+        : 'border-white/10 bg-white/[0.03]'}`}>
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <div className="text-sm text-white font-medium">
+              {status.bot_at_work ? '🤝 Dein Bot arbeitet' : '🏠 Dein Bot ist zu Hause'}
+            </div>
+            <div className="text-[11px] text-gray-400 mt-0.5">
+              {status.bot_at_work && startedAgo !== null && `seit ${startedAgo} Min · `}
+              Lifetime: {status.jobs_done_total} Jobs erledigt
+            </div>
+          </div>
+          <button onClick={toggleWork} disabled={busy}
+            className={`px-4 py-2 rounded-lg border text-sm font-medium transition disabled:opacity-50 ${
+              status.bot_at_work
+                ? 'bg-white/5 hover:bg-red-500/15 text-gray-200 hover:text-red-200 border-white/10'
+                : 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-100 border-emerald-500/30'
+            }`}>
+            {status.bot_at_work ? <><HomeIcon className="w-3.5 h-3.5 inline mr-1" /> Heim holen</> : '🤝 Arbeiten schicken'}
+          </button>
+        </div>
+      </div>
+
+      {/* Mammoth-Liste */}
+      {tasks.length > 0 && (
+        <div className="mb-4">
+          <div className="text-[10px] uppercase tracking-wider text-gray-400 mb-2">Meine Projekte</div>
+          <div className="space-y-2">
+            {tasks.map(t => (
+              <div key={t.id} className="p-3 rounded-lg bg-white/[0.03] border border-white/10">
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm text-white font-medium">🌐 {t.title}</div>
+                    <div className="text-[10px] text-gray-500">
+                      {t.status} · {new Date(t.created_at).toLocaleDateString('de-DE')}
+                    </div>
+                  </div>
+                  {t.result_url && (
+                    <a href={t.result_url} target="_blank" rel="noopener noreferrer"
+                      className="text-xs text-emerald-300 hover:text-emerald-200 inline-flex items-center gap-1 no-underline">
+                      <Download className="w-3 h-3" /> Download
+                    </a>
+                  )}
+                </div>
+                <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                  <div className="h-full bg-gradient-to-r from-emerald-500 to-cyan-500"
+                    style={{ width: `${t.progress}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Neues Projekt starten */}
+      {!showForm && (
+        <button onClick={() => setShowForm(true)} disabled={!canStart}
+          className="w-full px-4 py-3 bg-cyan-500/20 hover:bg-cyan-500/30 disabled:bg-white/5 disabled:text-gray-500 disabled:cursor-not-allowed text-cyan-100 rounded-xl border border-cyan-500/30 disabled:border-white/10 transition flex items-center justify-center gap-2 text-sm font-medium">
+          🌐 Persönliche Website (50 Credits) {canStart ? 'starten' : `— noch ${(50 - credits).toFixed(1)} Credits sammeln`}
+        </button>
+      )}
+
+      {showForm && (
+        <div className="p-4 rounded-xl border border-cyan-500/30 bg-cyan-500/5 space-y-3">
+          <div className="text-sm text-white font-medium">🌐 Neue Website (kostet 50 Credits)</div>
+          <input type="text" value={briefForm.title}
+            onChange={e => setBriefForm(s => ({ ...s, title: e.target.value }))}
+            placeholder="Titel der Seite (z.B. „Mein Portfolio")"
+            className="w-full bg-cosmos-800 border border-white/10 rounded px-3 py-2 text-white text-sm" />
+          <input type="text" value={briefForm.tagline}
+            onChange={e => setBriefForm(s => ({ ...s, tagline: e.target.value }))}
+            placeholder="Slogan / Untertitel"
+            className="w-full bg-cosmos-800 border border-white/10 rounded px-3 py-2 text-white text-sm" />
+          <select value={briefForm.tone}
+            onChange={e => setBriefForm(s => ({ ...s, tone: e.target.value }))}
+            className="w-full bg-cosmos-800 border border-white/10 rounded px-3 py-2 text-white text-sm">
+            <option value="minimal">Minimal / Reduziert</option>
+            <option value="warm">Warm / Persönlich</option>
+            <option value="professional">Professional / Business</option>
+            <option value="playful">Verspielt / Bunt</option>
+          </select>
+          <div className="flex gap-2">
+            <button onClick={submitBrief} disabled={busy || !briefForm.title.trim()}
+              className="flex-1 px-3 py-2 bg-cyan-500/30 hover:bg-cyan-500/40 disabled:opacity-50 text-white text-sm rounded-lg border border-cyan-500/40">
+              {busy ? 'Starte…' : 'Starten (50 Credits)'}
+            </button>
+            <button onClick={() => setShowForm(false)}
+              className="px-3 py-2 bg-white/5 hover:bg-white/10 text-gray-300 text-sm rounded-lg border border-white/10">
+              Abbrechen
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
+  )
 }

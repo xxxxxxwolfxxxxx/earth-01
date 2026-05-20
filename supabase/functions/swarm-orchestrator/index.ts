@@ -1,12 +1,12 @@
 // swarm-orchestrator
-// Wird in den Harvest-Minuten von reminder-tick aufgerufen.
-// Aufgabe: aktiv-spendende User identifizieren, Jobs zuweisen.
+// Wird jede Minute von reminder-tick aufgerufen.
+// Aufgabe: User mit bot_at_work=true identifizieren, ihnen Jobs zuweisen.
+// Priorisiert Mammut-Jobs (priority=2).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { isHarvestWindow, isMonthlyHarvestDay, detectLlmProvider, PROVIDERS, probeLlmRemaining } from "../_shared/providerLimits.ts";
-import { JOBS, statusAfterJob, nextJobType } from "../_shared/swarmJobs.ts";
+import { JOBS, nextJobType } from "../_shared/swarmJobs.ts";
 
-const ACTIVATION_THRESHOLD = 10;       // Schwarm-Schwelle
+const ACTIVATION_THRESHOLD = 5;          // Phase 4: weniger streng, da User aktiv schickt
 const MAX_JOBS_PER_USER_PER_DAY = 3;
 const MAX_PIPELINE_PARALLEL = 20;
 const MAX_JOBS_PER_DAY_PLATFORM = 1000;
@@ -17,10 +17,10 @@ Deno.serve(async (_req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
 
-  // 1. Aktivierungs-Gate: 10+ User mit donate_tokens=true?
+  // 1. Activation-Gate
   const { count: activeCount } = await supabase
     .from("profiles").select("id", { count: "exact", head: true })
-    .eq("donate_tokens", true);
+    .eq("bot_at_work", true);
   if ((activeCount ?? 0) < ACTIVATION_THRESHOLD) {
     return json({ skipped: 'below_threshold', activeCount });
   }
@@ -40,20 +40,17 @@ Deno.serve(async (_req) => {
     .not("status", "in", '(published,retired)');
   const allowNewTopics = (unfinishedArticles ?? 0) < MAX_PIPELINE_PARALLEL;
 
-  // 4. Wenn nicht in Harvest-Window: nur Pipeline-Fortschritts-Jobs erstellen
-  const inHarvest = isHarvestWindow();
+  // 4. Inaktive Bots aufwecken: User, deren bot_at_work seit 24h ohne Aktivität
+  await idleBotsToHome(supabase);
 
-  // 5. Pipeline-Stufen vorwärts treiben: für jeden 'done'-Job prüfen, ob nächste Stufe gestartet werden muss
+  // 5. Pipeline-Progression (waiting-Jobs neu, fertige Stufen → nächste)
   await progressPipelines(supabase, allowNewTopics);
 
-  // Außerhalb Harvest-Minuten: keine User-Assignments. Nur Pipeline-Cleanup.
-  if (!inHarvest) return json({ ok: true, mode: 'cleanup' });
-
-  // 6. Aktive User in Batches (50) auswählen
+  // 6. Aktive Bots in Batches (50)
   const { data: users } = await supabase
     .from("profiles")
-    .select("id, donate_tokens, donate_threshold, swarm_jobs_today, swarm_jobs_reset_at, llm_api_key, huggingface_key, replicate_key, cloud_provider")
-    .eq("donate_tokens", true)
+    .select("id, swarm_jobs_today, swarm_jobs_reset_at, llm_api_key, huggingface_key, replicate_key, cloud_provider")
+    .eq("bot_at_work", true)
     .limit(50);
   if (!users || users.length === 0) return json({ ok: true, users: 0 });
 
@@ -68,31 +65,25 @@ Deno.serve(async (_req) => {
     }
     if (u.swarm_jobs_today >= MAX_JOBS_PER_USER_PER_DAY) continue;
 
-    // Capability-Set ermitteln
+    // Capabilities
     const caps: string[] = [];
     if (u.llm_api_key) caps.push('llm');
     if (u.huggingface_key || u.replicate_key) caps.push('image');
     if (u.huggingface_key && u.cloud_provider) caps.push('rag');
     if (caps.length === 0) continue;
 
-    // Quota-Probe
-    if (u.llm_api_key) {
-      const remPct = await probeLlmRemaining(u.llm_api_key);
-      if (remPct !== null && remPct < u.donate_threshold) continue;
-    }
-
-    // Passenden waiting-Job suchen
+    // Job suchen — Mammut-Jobs (priority=2) vor regulären (priority=1)
     const { data: job } = await supabase
       .from("article_jobs")
       .select("id, job_type, required_capability, article_id")
       .eq("status", "waiting")
       .in("required_capability", caps)
+      .order("priority", { ascending: false })
       .order("created_at", { ascending: true })
       .limit(1).maybeSingle();
     if (!job) continue;
 
-    // Zuweisen
-    const dueAt = new Date(Date.now() + 5 * 60_000).toISOString();
+    const dueAt = new Date(Date.now() + 10 * 60_000).toISOString();
     await supabase.from("article_jobs")
       .update({ status: 'assigned', assigned_to: u.id, assigned_at: new Date().toISOString(), due_at: dueAt })
       .eq("id", job.id);
@@ -102,15 +93,23 @@ Deno.serve(async (_req) => {
     assigned++;
   }
 
-  return json({ ok: true, mode: 'harvest', users: users.length, assigned });
+  return json({ ok: true, users: users.length, assigned, activeCount });
 });
 
+async function idleBotsToHome(supabase: any) {
+  // Bots > 24h at_work ohne Job-Assignment → zurück nach Hause
+  const cutoff = new Date(Date.now() - 24 * 60 * 60_000).toISOString();
+  await supabase.from("profiles")
+    .update({ bot_at_work: false })
+    .eq("bot_at_work", true)
+    .lt("bot_work_started_at", cutoff);
+}
+
 async function progressPipelines(supabase: any, allowNewTopics: boolean) {
-  // Re-queue timed-out assigned-Jobs (over due_at, retry < 3)
+  // Re-queue timed-out assigned-Jobs (over due_at)
   const now = new Date().toISOString();
   await supabase.from("article_jobs")
-    .update({ status: 'waiting', assigned_to: null, retry_count: 0 })
-    // pseudo: retry_count + 1 via raw; vereinfacht: status zurücksetzen
+    .update({ status: 'waiting', assigned_to: null })
     .eq("status", "assigned")
     .lt("due_at", now);
 
@@ -122,7 +121,6 @@ async function progressPipelines(supabase: any, allowNewTopics: boolean) {
   if (!articles) return;
 
   for (const art of articles) {
-    // Existieren schon waiting/assigned-Jobs für diesen Artikel? → noch nicht weiter
     const { count: openJobs } = await supabase
       .from("article_jobs").select("id", { count: 'exact', head: true })
       .eq("article_id", art.id).in("status", ['waiting', 'assigned']);
@@ -134,18 +132,17 @@ async function progressPipelines(supabase: any, allowNewTopics: boolean) {
     const jobDef = JOBS[next];
     await supabase.from("article_jobs").insert({
       article_id: art.id, job_type: next,
-      required_capability: jobDef.capability, status: 'waiting',
+      required_capability: jobDef.capability, status: 'waiting', priority: 1,
     });
   }
 
-  // Neue topic_propose-Jobs für offene Topics, wenn Pipeline-Kapazität da ist
+  // Neue topic_propose-Jobs für offene Topics (Pool-finanziert)
   if (!allowNewTopics) return;
   const { data: openTopics } = await supabase
     .from("topic_pool").select("id, title")
     .eq("status", "open").limit(3);
   if (!openTopics) return;
   for (const t of openTopics) {
-    // Artikel anlegen
     const slug = String(t.title).toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 60);
     const { data: art } = await supabase.from("articles").insert({
       topic_id: t.id, title: t.title, slug: `${slug}-${Date.now()}`,
@@ -154,7 +151,7 @@ async function progressPipelines(supabase: any, allowNewTopics: boolean) {
     if (!art) continue;
     await supabase.from("article_jobs").insert({
       article_id: art.id, job_type: 'topic_propose',
-      required_capability: 'llm', status: 'waiting',
+      required_capability: 'llm', status: 'waiting', priority: 1,
     });
     await supabase.from("topic_pool").update({ status: 'in_progress' }).eq("id", t.id);
   }

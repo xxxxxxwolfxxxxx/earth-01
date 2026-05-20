@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { Sprout, Send } from 'lucide-react'
+import { Sprout, Send, Coins } from 'lucide-react'
 import { fetchPublishedArticles, fetchSwarmStatus, fetchRecentJobs, fetchArticleBySlug, suggestTopic } from '../lib/swarmService'
+import { fetchCommunityPool } from '../lib/cloudService'
 import { useAuth } from '../contexts/AuthContext'
 
 export default function ErdeLernt() {
@@ -15,6 +16,7 @@ function ArticleList() {
   const [articles, setArticles] = useState([])
   const [jobs, setJobs] = useState([])
   const [status, setStatus] = useState(null)
+  const [pool, setPool] = useState(null)
   const [suggestion, setSuggestion] = useState('')
   const [msg, setMsg] = useState('')
 
@@ -22,6 +24,7 @@ function ArticleList() {
     fetchPublishedArticles({ limit: 30 }).then(setArticles)
     fetchRecentJobs({ limit: 10 }).then(setJobs)
     fetchSwarmStatus().then(setStatus)
+    fetchCommunityPool().then(setPool)
   }, [])
 
   async function submit() {
@@ -53,6 +56,27 @@ function ArticleList() {
           </p>
         )}
       </div>
+
+      {pool && (
+        <div className="mb-6 p-4 rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-500/10 to-yellow-500/5">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-3">
+              <Coins className="w-6 h-6 text-amber-400" />
+              <div>
+                <div className="font-display text-white font-bold text-lg">
+                  {Number(pool.credits_balance).toFixed(1)} Credits
+                </div>
+                <div className="text-[11px] text-gray-400">
+                  im Gemeinschafts-Pool · gesamt gesammelt: {Number(pool.total_collected).toFixed(1)}
+                </div>
+              </div>
+            </div>
+            <div className="text-xs text-amber-300/80 max-w-xs text-right">
+              10% jeder Bot-Arbeit fließt hierher und finanziert die kostenfreien Lehr-Artikel.
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr,300px] gap-8">
         <main>

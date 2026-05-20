@@ -230,6 +230,7 @@ export async function executeSkill(skill_id: string, ctx: SkillContext): Promise
     case "voice_out": return skillVoiceOut(ctx);
     case "mail_send": return skillMailSend(ctx);
     case "chat": return skillChat(ctx);
+    case "teamwork": return skillTeamwork(ctx);
     default: return { reply: BOT.unknown_command() };
   }
 }
@@ -601,4 +602,45 @@ export async function skillChat(ctx: SkillContext): Promise<SkillResult> {
   } catch (e) {
     return { reply: `🤖 Verbindungsfehler: ${(e as Error).message}` };
   }
+}
+
+// ─── Teamwork: Bot-Status + Credits ────────────────────────
+
+export async function skillTeamwork(ctx: SkillContext): Promise<SkillResult> {
+  const m = ctx.message.match(/\/(arbeiten|heim|credits)/i);
+  const cmd = (m?.[1] ?? '').toLowerCase();
+  if (!cmd) return { reply: "Probier: /arbeiten · /heim · /credits" };
+
+  const { data: profile } = await ctx.supabase
+    .from("profiles")
+    .select("bot_at_work, bot_work_started_at, job_credits, jobs_done_total")
+    .eq("id", ctx.user_id).single();
+  if (!profile) return { reply: "Profil nicht gefunden" };
+
+  if (cmd === 'credits') {
+    return {
+      reply: `💰 Dein Konto:\n${Number(profile.job_credits).toFixed(1)} Credits\n${profile.jobs_done_total} Jobs gesamt erledigt.\n\nMit 50 Credits startest du eine Mammutaufgabe (z.B. „/projekt website Mein Portfolio").`
+    };
+  }
+  if (cmd === 'arbeiten') {
+    if (profile.bot_at_work) {
+      const started = profile.bot_work_started_at ? new Date(profile.bot_work_started_at) : null;
+      const ago = started ? Math.floor((Date.now() - started.getTime()) / 60_000) : 0;
+      return { reply: `🤝 Dein Bot arbeitet schon (seit ${ago} Min). Mit „/heim" holst du ihn zurück.` };
+    }
+    await ctx.supabase.from("profiles").update({
+      bot_at_work: true, bot_work_started_at: new Date().toISOString(),
+    }).eq("id", ctx.user_id);
+    return { reply: `🤝 Dein Bot ist los! Er pickt sich Jobs aus dem Schwarm. Pro Job kriegst du 0.9 Credits, 0.1 fließt in den Gemeinschafts-Pool. Mit „/heim" holst du ihn zurück.` };
+  }
+  if (cmd === 'heim') {
+    if (!profile.bot_at_work) {
+      return { reply: `🏠 Dein Bot ist schon zu Hause. Aktueller Stand: ${Number(profile.job_credits).toFixed(1)} Credits.` };
+    }
+    await ctx.supabase.from("profiles").update({
+      bot_at_work: false,
+    }).eq("id", ctx.user_id);
+    return { reply: `🏠 Dein Bot ist wieder zu Hause. Aktueller Stand: ${Number(profile.job_credits).toFixed(1)} Credits.` };
+  }
+  return { reply: "Probier: /arbeiten · /heim · /credits" };
 }

@@ -1,11 +1,18 @@
 // swarm-worker
 // POST { job_id } mit User-Auth. Worker führt den zugewiesenen Job aus
 // mit dem User-eigenen LLM/Image-Key.
+//
+// Phase 4: nach jedem Job 0.9 Credits an User, 0.1 in Community-Pool.
+// Mammoth-Jobs nutzen separates Prompt-Set + Pipeline-Kontext.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { JOBS, statusAfterJob } from "../_shared/swarmJobs.ts";
+import { MAMMOTH_JOBS } from "../_shared/mammothWebsite.ts";
 import { scoreContent } from "../_shared/qualityScore.ts";
 import { generateImage } from "../_shared/imageGen.ts";
+
+const USER_SHARE = 0.9;
+const POOL_SHARE = 0.1;
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -25,7 +32,6 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
 
-  // Auth
   const authHeader = req.headers.get("Authorization") || "";
   const userToken = authHeader.replace(/^Bearer\s+/i, "");
   const { data: { user } } = await supabase.auth.getUser(userToken);
@@ -35,38 +41,52 @@ Deno.serve(async (req) => {
   const jobId = body?.job_id;
   if (!jobId) return json({ error: "job_id fehlt" }, 400);
 
-  // Job laden, prüfen ob diesem User zugewiesen
   const { data: job } = await supabase.from("article_jobs")
-    .select("id, article_id, job_type, status, assigned_to, required_capability")
+    .select("id, article_id, job_type, status, assigned_to, required_capability, mammoth_task_id")
     .eq("id", jobId).single();
   if (!job || job.assigned_to !== user.id) return json({ error: "Job nicht zugewiesen" }, 403);
   if (job.status !== "assigned") return json({ error: `Job-Status ist ${job.status}` }, 400);
 
-  // Profile + Article + Topic laden
   const { data: profile } = await supabase.from("profiles")
     .select("llm_api_key, llm_base_url, llm_model, huggingface_key, replicate_key")
     .eq("id", user.id).single();
   const { data: article } = await supabase.from("articles").select("*").eq("id", job.article_id).single();
-  const { data: topic } = article?.topic_id
-    ? await supabase.from("topic_pool").select("*").eq("id", article.topic_id).single()
-    : { data: null };
-
   if (!profile || !article) return json({ error: "Daten fehlen" }, 500);
 
-  // Job ausführen
-  const jobDef = JOBS[job.job_type as keyof typeof JOBS];
-  if (!jobDef) return json({ error: `Unbekannter Job-Type ${job.job_type}` }, 400);
+  const isMammoth = String(job.job_type).startsWith("mammoth_");
+
+  // Mammoth-Kontext laden (alle bisherigen Job-Results für diese Task)
+  let mammothCtx: any = null;
+  let mammothTask: any = null;
+  if (isMammoth && job.mammoth_task_id) {
+    const { data: mt } = await supabase.from("mammoth_tasks").select("*").eq("id", job.mammoth_task_id).single();
+    mammothTask = mt;
+    const { data: prevJobs } = await supabase.from("article_jobs")
+      .select("job_type, result")
+      .eq("mammoth_task_id", job.mammoth_task_id)
+      .eq("status", "done");
+    const results: Record<string, any> = {};
+    for (const pj of (prevJobs ?? [])) results[pj.job_type] = pj.result;
+    mammothCtx = { brief: mt?.brief ?? {}, results };
+  }
 
   let result: any = null;
   let success = false;
+
   try {
-    if (jobDef.capability === 'image') {
-      const prompt = jobDef.buildUserPrompt({ article, topic });
+    // ── Spezialfall: mammoth_package — ZIP bauen, kein LLM/Image ──
+    if (job.job_type === 'mammoth_package' && mammothCtx) {
+      result = await packageWebsite(supabase, mammothTask, mammothCtx);
+      success = !!result.result_url;
+    }
+    // ── Image-Jobs (regulär oder mammoth) ──
+    else if (job.required_capability === 'image') {
+      const def = isMammoth ? MAMMOTH_JOBS[job.job_type as keyof typeof MAMMOTH_JOBS] : JOBS[job.job_type as keyof typeof JOBS];
+      const prompt = def.buildUserPrompt(isMammoth ? mammothCtx : { article });
       const img = await generateImage({
         prompt, hfKey: profile.huggingface_key, replicateKey: profile.replicate_key,
       });
       if (img.ok && img.blob) {
-        // Bild als Data-URL hinterlegen (für MVP — bei Skalierung in Storage)
         const buf = await img.blob.arrayBuffer();
         const base64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
         const dataUrl = `data:image/png;base64,${base64}`;
@@ -75,13 +95,15 @@ Deno.serve(async (req) => {
       } else {
         result = { error: img.error };
       }
-    } else {
-      // LLM-Job
+    }
+    // ── LLM-Jobs (regulär oder mammoth) ──
+    else {
       if (!profile.llm_api_key || !profile.llm_base_url || !profile.llm_model) {
         return json({ error: "LLM-Key fehlt im Profil" }, 400);
       }
-      const sys = jobDef.buildSystemPrompt({ article, topic });
-      const usr = jobDef.buildUserPrompt({ article, topic, reviewIssues: article._reviewIssues });
+      const def = isMammoth ? MAMMOTH_JOBS[job.job_type as keyof typeof MAMMOTH_JOBS] : JOBS[job.job_type as keyof typeof JOBS];
+      const sys = def.buildSystemPrompt(isMammoth ? mammothCtx : { article });
+      const usr = def.buildUserPrompt(isMammoth ? mammothCtx : { article, reviewIssues: article._reviewIssues });
       const r = await fetch(`${profile.llm_base_url}/chat/completions`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${profile.llm_api_key}` },
@@ -93,12 +115,8 @@ Deno.serve(async (req) => {
       });
       const j = await r.json();
       const content = j?.choices?.[0]?.message?.content;
-      if (!content) {
-        result = { error: 'LLM lieferte keinen Inhalt' };
-      } else {
-        result = { content };
-        success = true;
-      }
+      if (!content) result = { error: 'LLM lieferte keinen Inhalt' };
+      else { result = { content }; success = true; }
     }
 
     if (!success) {
@@ -108,13 +126,12 @@ Deno.serve(async (req) => {
       return json({ ok: false, result });
     }
 
-    // Quality-Score auf Text-Resultate
+    // Quality-Score nur für reguläre Text-Jobs (mammoth hat eigene review-Stufe)
     let qScore: number | null = null;
-    if (result.content && job.job_type !== 'review' && job.job_type !== 'topic_propose') {
+    if (!isMammoth && result.content && job.job_type !== 'review' && job.job_type !== 'topic_propose') {
       const score = await scoreContent({
         text: result.content,
         topic: article.title,
-        factualSeed: topic?.context_seed,
         llmBaseUrl: profile.llm_base_url,
         llmKey: profile.llm_api_key,
         llmModel: profile.llm_model,
@@ -129,15 +146,36 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Apply result to article — abhängig vom Job-Typ
-    await applyJobResult(supabase, article, job.job_type, result, user.id, jobId);
+    // Reguläre Jobs: Result auf Artikel anwenden
+    if (!isMammoth) {
+      await applyJobResult(supabase, article, job.job_type, result, user.id, jobId);
+    }
 
-    // Job als done
+    // Job als done markieren
     await supabase.from("article_jobs").update({
       status: "done", result, quality_score: qScore, completed_at: new Date().toISOString(),
     }).eq("id", jobId);
 
-    return json({ ok: true, score: qScore });
+    // ── Credits buchen ──
+    await supabase.rpc('book_credits', {
+      p_user_id: user.id,
+      p_user_share: USER_SHARE,
+      p_pool_share: POOL_SHARE,
+    });
+
+    // ── Mammoth-Progress + ggf. Result auf Task übertragen ──
+    if (isMammoth && job.mammoth_task_id) {
+      await supabase.rpc('update_mammoth_progress', { p_task_id: job.mammoth_task_id });
+      // Bei mammoth_package: Result-URL in task speichern
+      if (job.job_type === 'mammoth_package' && result.result_url) {
+        await supabase.from("mammoth_tasks").update({
+          result_url: result.result_url,
+          result_data: result,
+        }).eq("id", job.mammoth_task_id);
+      }
+    }
+
+    return json({ ok: true, score: qScore, credits_earned: USER_SHARE });
   } catch (e) {
     await supabase.from("article_jobs").update({
       status: "failed", result: { error: (e as Error).message }, completed_at: new Date().toISOString(),
@@ -146,6 +184,7 @@ Deno.serve(async (req) => {
   }
 });
 
+// ── Reguläre Pipeline-Apply (Phase 3-Logik) ──
 async function applyJobResult(supabase: any, article: any, jobType: string, result: any, userId: string, jobId: string) {
   let newBody = article.body_markdown ?? '';
   let newHero = article.hero_image_url;
@@ -154,60 +193,40 @@ async function applyJobResult(supabase: any, article: any, jobType: string, resu
 
   switch (jobType) {
     case 'topic_propose': {
-      // result.content ist JSON-String { title, lead }
       try {
         const parsed = JSON.parse(result.content);
         if (parsed.title) newTitle = String(parsed.title).slice(0, 80);
         newBody = `${parsed.lead ?? ''}`;
-      } catch {
-        newBody = `${result.content}`;
-      }
+      } catch { newBody = `${result.content}`; }
       newStatus = 'proposed';
       break;
     }
-    case 'research': {
+    case 'research':
       newBody = `${article.body_markdown}\n\n## Recherche\n${result.content}`;
-      newStatus = 'researched';
-      break;
-    }
-    case 'draft': {
-      newBody = result.content;
-      newStatus = 'drafted';
-      break;
-    }
-    case 'illustrate': {
-      newHero = result.image_url;
-      newStatus = 'illustrated';
-      break;
-    }
-    case 'code_snippet': {
+      newStatus = 'researched'; break;
+    case 'draft':
+      newBody = result.content; newStatus = 'drafted'; break;
+    case 'illustrate':
+      newHero = result.image_url; newStatus = 'illustrated'; break;
+    case 'code_snippet':
       if (result.content && !/(kein Code-Snippet)/i.test(result.content)) {
         newBody = `${article.body_markdown}\n\n## Beispiel\n${result.content}`;
       }
       break;
-    }
-    case 'review': {
-      // result.content ist JSON
+    case 'review':
       try {
         const r = JSON.parse(result.content);
         if (r.needs_revise && (r.issues ?? []).length > 0) {
-          // einen revise-Job einplanen
           await supabase.from("article_jobs").insert({
             article_id: article.id, job_type: 'revise',
             required_capability: 'llm', status: 'waiting',
-            result: { review_issues: r.issues },
+            result: { review_issues: r.issues }, priority: 1,
           });
-        } else {
-          newStatus = 'published';
-        }
+        } else newStatus = 'published';
       } catch { newStatus = 'published'; }
       break;
-    }
-    case 'revise': {
-      newBody = result.content;
-      newStatus = 'reviewed';
-      break;
-    }
+    case 'revise':
+      newBody = result.content; newStatus = 'reviewed'; break;
   }
 
   await supabase.from("articles").update({
@@ -220,4 +239,51 @@ async function applyJobResult(supabase: any, article: any, jobType: string, resu
     article_id: article.id, body_markdown: newBody,
     contributor_user_id: userId, job_id: jobId,
   });
+}
+
+// ── Mammoth-Package: HTML+CSS+Bilder zu Mini-ZIP-artiger Resource zusammenführen ──
+// MVP: speichere index.html + style.css + meta als JSON-Blob in Storage
+// (echtes ZIP wäre die nächste Stufe; für MVP packt der Browser die Dateien selbst)
+async function packageWebsite(supabase: any, task: any, ctx: any): Promise<any> {
+  const html = ctx.results.mammoth_revise?.content ? extractJsonField(ctx.results.mammoth_revise.content, 'html') || ctx.results.mammoth_html_assemble?.content
+              : ctx.results.mammoth_html_assemble?.content;
+  const css  = ctx.results.mammoth_revise?.content ? extractJsonField(ctx.results.mammoth_revise.content, 'css') || ctx.results.mammoth_css_styling?.content
+              : ctx.results.mammoth_css_styling?.content;
+  const heroImg = ctx.results.mammoth_image_hero?.image_url;
+  const secondaryImg = ctx.results.mammoth_image_secondary?.image_url;
+
+  if (!html || !css) {
+    return { error: 'HTML oder CSS fehlt im Mammoth-Kontext' };
+  }
+
+  // Storage-Upload: ein Manifest-JSON mit allen Bestandteilen.
+  // Der User kann sich das im /bot-UI als ZIP-Download zusammenbauen lassen (Browser-zip).
+  const manifest = {
+    task_id: task.id,
+    title: task.title,
+    created_at: new Date().toISOString(),
+    files: {
+      'index.html': html,
+      'style.css': css,
+      'hero.png': heroImg ?? null,
+      'image-2.png': secondaryImg ?? null,
+      'README.md': `# ${task.title}\n\nGeneriert von Earth 0.1 — Mammutaufgabe.\nÖffne index.html im Browser.\n`,
+    },
+  };
+
+  const path = `${task.user_id}/${task.id}/manifest.json`;
+  const blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+  const { error: upErr } = await supabase.storage.from('mammoth-results').upload(path, blob, {
+    upsert: true, contentType: 'application/json',
+  });
+  if (upErr) return { error: `Upload: ${upErr.message}` };
+  const { data: pub } = supabase.storage.from('mammoth-results').getPublicUrl(path);
+  return { result_url: pub.publicUrl, manifest_path: path };
+}
+
+function extractJsonField(content: string, field: string): string | null {
+  try {
+    const parsed = JSON.parse(content);
+    return parsed[field] ?? null;
+  } catch { return null; }
 }
