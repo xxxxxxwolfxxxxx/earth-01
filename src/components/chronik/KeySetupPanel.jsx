@@ -3,7 +3,7 @@ import { Key, Check, X } from 'lucide-react'
 import { fetchUserKeys, saveUserKey, testKey } from '../../lib/keyService'
 
 const KEY_FIELDS = [
-  { field: 'llm_api_key', label: 'LLM-Key (Groq / NVIDIA / OpenRouter)', placeholder: 'sk-…', help: 'kostenlose Keys: groq.com, openrouter.ai, build.nvidia.com' },
+  { field: 'llm_api_key', label: 'LLM-Key (Groq / NVIDIA / OpenRouter / OpenAI)', placeholder: 'gsk_…  sk-or-…  nvapi-…  sk-…', help: 'Anbieter wird automatisch am Prefix erkannt. Empfohlen kostenlos: groq.com/keys (gsk_…). NVIDIA-Keys sind aktuell vielfach abgelaufen.' },
   { field: 'huggingface_key', label: 'Hugging-Face-Key (für Bild-Generation)', placeholder: 'hf_…', help: 'kostenlos auf huggingface.co/settings/tokens' },
   { field: 'resend_api_key', label: 'Resend-Key (für Email-Versand)', placeholder: 're_…', help: '100 Mails/Tag kostenlos auf resend.com' },
 ]
