@@ -2,67 +2,77 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import Globe from 'react-globe.gl'
 import { supabase } from '../lib/supabase'
+import { bodyScenePosition, sunUnitDirection } from '../lib/ephemeris'
 
 const EARTH_DAY   = '//unpkg.com/three-globe/example/img/earth-blue-marble.jpg'
 const EARTH_NIGHT = '//unpkg.com/three-globe/example/img/earth-night.jpg'
-const STAR_BG     = '//unpkg.com/three-globe/example/img/night-sky.png'
+// NASA Tycho Skymap — Equirectangular Projection des Sternkatalogs.
+// Mit echten Konstellationen, kalibriert zur Himmelskugel.
+const STAR_BG     = 'https://svs.gsfc.nasa.gov/vis/a000000/a004800/a004851/TychoSkymap.t4_04096x02048.jpg'
 
 const RING_LIFETIME_MS = 8000
 
-// Sonnen-Position berechnen: aktuelle UTC-Zeit → Längengrad mit Solar-Noon,
-// Deklination aus Tag des Jahres.
-function sunDirection(date = new Date()) {
-  const utcHours = date.getUTCHours() + date.getUTCMinutes() / 60 + date.getUTCSeconds() / 3600
-  const startOfYear = Date.UTC(date.getUTCFullYear(), 0, 1)
-  const dayOfYear = Math.floor((date.getTime() - startOfYear) / 86400000) + 1
+// Visuelle Distanzen in Szenen-Einheiten (Erde-Radius = 100).
+// Real-Distanzen ignoriert, weil sonst Mond ~6000 / Venus ~40000.
+const DIST = {
+  Moon:    250,
+  Mercury: 700,
+  Venus:   620,
+  Mars:    760,
+  Jupiter: 920,
+  Saturn:  1050,
+}
 
-  const sunLng = (12 - utcHours) * 15                                     // Grad
-  const sunLat = 23.45 * Math.sin(((dayOfYear - 81) * 2 * Math.PI) / 365) // Deklination
+// Visuelle Größe + Farbe der Himmelskörper.
+const BODY_STYLE = {
+  Moon:    { radius: 18, color: 0xfdf5d3, emissive: 0xaa9966, emi: 0.5, halo: 22, haloAlpha: 0.12 },
+  Mercury: { radius: 5,  color: 0xb5a394, emissive: 0x554840, emi: 0.4, halo: 8,  haloAlpha: 0.10 },
+  Venus:   { radius: 9,  color: 0xfff2cc, emissive: 0xb09060, emi: 0.6, halo: 14, haloAlpha: 0.18 },
+  Mars:    { radius: 6,  color: 0xff7a3d, emissive: 0xaa3a10, emi: 0.5, halo: 10, haloAlpha: 0.12 },
+  Jupiter: { radius: 10, color: 0xe8d3a8, emissive: 0x8a7050, emi: 0.4, halo: 14, haloAlpha: 0.12 },
+  Saturn:  { radius: 9,  color: 0xddc18b, emissive: 0x806840, emi: 0.4, halo: 14, haloAlpha: 0.12 },
+}
 
-  // Konsistent zur three-globe lat/lng-zu-XYZ Konvention
-  const phi   = (90 - sunLat) * Math.PI / 180
-  const theta = (sunLng + 180) * Math.PI / 180
-  return new THREE.Vector3(
-    -Math.sin(phi) * Math.cos(theta),
-     Math.cos(phi),
-     Math.sin(phi) * Math.sin(theta),
-  ).normalize()
+function makeBodyMesh(name) {
+  const s = BODY_STYLE[name]
+  const group = new THREE.Group()
+  group.add(new THREE.Mesh(
+    new THREE.SphereGeometry(s.radius, 32, 32),
+    new THREE.MeshStandardMaterial({
+      color: s.color, emissive: s.emissive, emissiveIntensity: s.emi,
+      roughness: 0.65, metalness: 0.0,
+    }),
+  ))
+  group.add(new THREE.Mesh(
+    new THREE.SphereGeometry(s.halo, 24, 24),
+    new THREE.MeshBasicMaterial({ color: s.color, transparent: true, opacity: s.haloAlpha, depthWrite: false }),
+  ))
+  return group
 }
 
 const VERTEX_SHADER = /* glsl */ `
 varying vec2 vUv;
 varying vec3 vWorldNormal;
-
 void main() {
   vUv = uv;
   vWorldNormal = normalize(mat3(modelMatrix) * normal);
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }
 `
-
 const FRAGMENT_SHADER = /* glsl */ `
 uniform sampler2D dayMap;
 uniform sampler2D nightMap;
 uniform vec3 sunDir;
-
 varying vec2 vUv;
 varying vec3 vWorldNormal;
-
 void main() {
   vec3 day   = texture2D(dayMap,   vUv).rgb;
   vec3 night = texture2D(nightMap, vUv).rgb;
-
   float cosA = dot(normalize(vWorldNormal), normalize(sunDir));
-  // Sanfter Übergang am Terminator
   float blend = smoothstep(-0.12, 0.12, cosA);
-
-  // Tag: leicht moduliert mit Lichtwinkel
-  vec3 dayLit = day * (max(cosA, 0.0) * 0.75 + 0.25);
-  // Nacht: Stadtlichter, leicht abgedunkelt
+  vec3 dayLit   = day * (max(cosA, 0.0) * 0.75 + 0.25);
   vec3 nightLit = night * 0.95;
-
-  vec3 color = mix(nightLit, dayLit, blend);
-  gl_FragColor = vec4(color, 1.0);
+  gl_FragColor = vec4(mix(nightLit, dayLit, blend), 1.0);
 }
 `
 
@@ -71,10 +81,9 @@ export default function LiveEarth({ height = 900 }) {
   const [users, setUsers] = useState([])
   const [rings, setRings] = useState([])
 
-  // Earth-Material mit Day/Night-Shader
   const { earthMaterial, sunUniformRef } = useMemo(() => {
     const loader = new THREE.TextureLoader()
-    const sunUniform = { value: sunDirection() }
+    const sunUniform = { value: sunUnitDirection(new Date()) }
     const mat = new THREE.ShaderMaterial({
       uniforms: {
         dayMap:   { value: loader.load(EARTH_DAY) },
@@ -87,20 +96,19 @@ export default function LiveEarth({ height = 900 }) {
     return { earthMaterial: mat, sunUniformRef: sunUniform }
   }, [])
 
-  // Sonne wandert mit der Erddrehung: alle 60 Sekunden updaten
+  // Sun-Uniform alle 60s aktualisieren
   useEffect(() => {
-    const tick = () => { sunUniformRef.value = sunDirection() }
+    const tick = () => { sunUniformRef.value = sunUnitDirection(new Date()) }
     tick()
     const id = setInterval(tick, 60_000)
     return () => clearInterval(id)
   }, [sunUniformRef])
 
-  // Initial-Daten laden
+  // User + Demo-Standorte laden
   useEffect(() => {
     let cancelled = false
     Promise.all([
-      supabase.from('profiles')
-        .select('home_lat, home_lon, home_city')
+      supabase.from('profiles').select('home_lat, home_lon, home_city')
         .not('home_lat', 'is', null).not('home_lon', 'is', null),
       supabase.from('demo_locations').select('lat, lon, city').eq('active', true),
     ]).then(([profiles, demos]) => {
@@ -116,7 +124,7 @@ export default function LiveEarth({ height = 900 }) {
     return () => { cancelled = true }
   }, [])
 
-  // Realtime-Pulse
+  // Realtime auf agent_activity
   useEffect(() => {
     const channel = supabase
       .channel('live-earth-' + Date.now())
@@ -133,62 +141,59 @@ export default function LiveEarth({ height = 900 }) {
     return () => supabase.removeChannel(channel)
   }, [])
 
-  // Scene-Setup: Sonnen-DirectionalLight (für den Mond!), Mond, Sterne
+  // Scene: Sonne, Mond, Planeten, alle an ECHTEN Positionen
   useEffect(() => {
     const g = globeRef.current
     if (!g) return
-
     const scene = g.scene()
 
-    // Sun-Light positionieren — gleiche Richtung wie der Shader-Uniform
-    const sunPos = sunDirection().multiplyScalar(800)
-    const sun = new THREE.DirectionalLight(0xfff2cc, 1.4)
-    sun.position.copy(sunPos)
-    scene.add(sun)
+    // ── Sun-Light (für Mond/Planeten-Beleuchtung) ──
+    const sunPos = bodyScenePosition('Sun', new Date(), 800).position
+    const sunLight = new THREE.DirectionalLight(0xfff2cc, 1.4)
+    sunLight.position.copy(sunPos)
+    scene.add(sunLight)
 
-    const ambient = new THREE.AmbientLight(0x223355, 0.15)
+    const ambient = new THREE.AmbientLight(0x223355, 0.12)
     scene.add(ambient)
 
-    // Mond
-    const moonGroup = new THREE.Group()
-    const moonGeo = new THREE.SphereGeometry(18, 48, 48)
-    const moonMat = new THREE.MeshStandardMaterial({
-      color: 0xfdf5d3,
-      emissive: 0xaa9966,
-      emissiveIntensity: 0.5,
-      roughness: 0.65,
-      metalness: 0.0,
-    })
-    moonGroup.add(new THREE.Mesh(moonGeo, moonMat))
-    // Halo
-    moonGroup.add(new THREE.Mesh(
-      new THREE.SphereGeometry(22, 32, 32),
-      new THREE.MeshBasicMaterial({ color: 0xfff4cf, transparent: true, opacity: 0.12, depthWrite: false }),
-    ))
-    moonGroup.position.set(-320, 140, -180)
-    scene.add(moonGroup)
-
-    // Sonne als sichtbarer Glow (klein, weit weg in Sonnenrichtung)
-    const sunGlowGroup = new THREE.Group()
-    sunGlowGroup.add(new THREE.Mesh(
+    // ── Visible Sun: gelber Glow ──
+    const sunGlow = new THREE.Group()
+    sunGlow.add(new THREE.Mesh(
       new THREE.SphereGeometry(30, 32, 32),
       new THREE.MeshBasicMaterial({ color: 0xfff2aa, transparent: true, opacity: 0.85 }),
     ))
-    sunGlowGroup.add(new THREE.Mesh(
+    sunGlow.add(new THREE.Mesh(
       new THREE.SphereGeometry(50, 32, 32),
       new THREE.MeshBasicMaterial({ color: 0xfff5bb, transparent: true, opacity: 0.18, depthWrite: false }),
     ))
-    sunGlowGroup.position.copy(sunPos);
-    scene.add(sunGlowGroup)
+    sunGlow.position.copy(sunPos)
+    scene.add(sunGlow)
 
-    // Sonne (Light + visuelle Sphere) jeden Tick mitlaufen lassen
-    const moveSun = () => {
-      const p = sunDirection().multiplyScalar(800)
-      sun.position.copy(p)
-      sunGlowGroup.position.copy(p)
+    // ── Körper an realen Positionen ──
+    const bodyMeshes = {}
+    const allBodies = ['Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn']
+    for (const name of allBodies) {
+      const m = makeBodyMesh(name)
+      const p = bodyScenePosition(name, new Date(), DIST[name]).position
+      m.position.copy(p)
+      scene.add(m)
+      bodyMeshes[name] = m
     }
-    const sunMoveId = setInterval(moveSun, 60_000)
 
+    // Positionen alle 60 Sekunden updaten
+    const updatePositions = () => {
+      const now = new Date()
+      const sp = bodyScenePosition('Sun', now, 800).position
+      sunLight.position.copy(sp)
+      sunGlow.position.copy(sp)
+      for (const name of allBodies) {
+        const p = bodyScenePosition(name, now, DIST[name]).position
+        bodyMeshes[name].position.copy(p)
+      }
+    }
+    const positionId = setInterval(updatePositions, 60_000)
+
+    // Camera + Auto-Rotate
     g.controls().autoRotate = true
     g.controls().autoRotateSpeed = 0.35
     g.controls().enableZoom = false
@@ -196,8 +201,9 @@ export default function LiveEarth({ height = 900 }) {
     g.pointOfView({ lat: 25, lng: 10, altitude: 2.2 }, 0)
 
     return () => {
-      clearInterval(sunMoveId)
-      scene.remove(sun, ambient, moonGroup, sunGlowGroup)
+      clearInterval(positionId)
+      scene.remove(sunLight, ambient, sunGlow)
+      for (const m of Object.values(bodyMeshes)) scene.remove(m)
     }
   }, [])
 
