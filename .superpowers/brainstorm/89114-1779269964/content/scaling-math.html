@@ -1,0 +1,177 @@
+<h2>Wie viele User passen auf Free-Tier?</h2>
+<p class="subtitle">Rechnung mit GitHub + Netlify + Supabase. Annahme: jeder User bringt eigene API-Keys + eigenen Cloud-Speicher (Google Drive / GitHub / OneDrive).</p>
+
+<style>
+  .calc-row {
+    display: grid;
+    grid-template-columns: 1.3fr 1fr 1fr;
+    gap: 12px;
+    padding: 10px 14px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    font-size: 13px;
+    color: #cbd5e1;
+    border: 1px solid transparent;
+  }
+  .calc-row.head { background: transparent; font-weight: 700; color: #94a3b8; font-size: 11px; text-transform: uppercase; }
+  .calc-row.good { border-color: rgba(74,222,128,0.35); }
+  .calc-row.bottleneck { border-color: rgba(245,158,11,0.5); background: rgba(245,158,11,0.1); }
+  .calc-row .max { color: #fff; font-weight: 600; }
+  .calc-row.bottleneck .max { color: #fbbf24; }
+
+  .section-title {
+    margin-top: 22px; color: #fff;
+    font-size: 14px; font-weight: 700;
+  }
+
+  .note {
+    background: rgba(99,102,241,0.08);
+    border: 1px solid rgba(99,102,241,0.3);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 12px;
+    color: #cbd5e1;
+    line-height: 1.6;
+    margin-top: 16px;
+  }
+  .verdict {
+    margin-top: 22px;
+    background: linear-gradient(135deg, rgba(74,222,128,0.12), rgba(99,102,241,0.12));
+    border: 1px solid rgba(74,222,128,0.4);
+    border-radius: 12px;
+    padding: 16px 18px;
+    color: #fff;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+</style>
+
+<h3 class="section-title">🧮 Pro-User-Verbrauch (Annahme: User bringt eigenen Speicher + Keys mit)</h3>
+
+<div class="calc-row head">
+  <div>Ressource</div><div>Pro User</div><div>Free-Tier-Cap</div>
+</div>
+<div class="calc-row good">
+  <div>DB-Zeile (Profil + Settings + Token-Refs)</div>
+  <div>~5 KB</div>
+  <div class="max">500 MB → <strong>~100.000 User</strong></div>
+</div>
+<div class="calc-row good">
+  <div>Auth-Konto (Supabase Auth)</div>
+  <div>1 MAU</div>
+  <div class="max">50.000 MAU → <strong>50.000 User</strong></div>
+</div>
+<div class="calc-row bottleneck">
+  <div>Edge-Function-Aufrufe (Tool-Calls)</div>
+  <div>~300/Monat bei 10 Calls/Tag</div>
+  <div class="max">500.000/Monat → <strong>~1.600 aktive User</strong></div>
+</div>
+<div class="calc-row good">
+  <div>Realtime-Verbindungen (Live-Chat)</div>
+  <div>1 concurrent während Session</div>
+  <div class="max">200 concurrent → <strong>~200 gleichzeitig</strong></div>
+</div>
+<div class="calc-row good">
+  <div>Bandbreite (Egress)</div>
+  <div>~10 MB/Monat (Chat ist Text)</div>
+  <div class="max">5 GB/Monat → <strong>500 aktive User</strong></div>
+</div>
+<div class="calc-row good">
+  <div>Netlify-Build & CDN</div>
+  <div>~5 MB Bundle pro Visit</div>
+  <div class="max">100 GB/Monat → <strong>20.000 Visits</strong></div>
+</div>
+
+<h3 class="section-title">🚧 Bottleneck identifiziert: Edge-Function-Aufrufe</h3>
+
+<div class="note">
+  Bei mittlerer Nutzung (10 Tool-Calls/Tag pro User) sind nach ~1.600 Usern die Edge-Function-Quotas erschöpft.
+  Aber: <strong>nicht jeder User chattet täglich</strong>. Realistisch ist eine Mischung:
+  <ul style="margin: 6px 0 0 0; padding-left: 22px;">
+    <li>10% Heavy-User (~30 Calls/Tag) → 9k Calls/Monat each</li>
+    <li>40% Regular (~5 Calls/Tag) → 150 Calls/Monat each</li>
+    <li>50% Schläfer (Account ja, kaum Aktivität) → 5 Calls/Monat each</li>
+  </ul>
+  <strong>Realistischer Mix:</strong> 500k / (0.1·9k + 0.4·150 + 0.5·5) → ~500 User bei vollem Mix, oder ~2.000-3.000 wenn Skills sparsam laufen (kein LLM bei trivialen Sachen).
+</div>
+
+<h3 class="section-title">💡 Mehr Headroom ohne Geld auszugeben</h3>
+
+<div class="calc-row head">
+  <div>Verlagerung</div><div>Wie</div><div>Effekt</div>
+</div>
+<div class="calc-row good">
+  <div>Skript-Calls in den Browser</div>
+  <div>Wetter / Web-Suche / Math direkt vom User-Browser zur jeweiligen API (CORS-erlaubend), nicht über Edge Function</div>
+  <div class="max">−50% Edge-Calls</div>
+</div>
+<div class="calc-row good">
+  <div>Tool-Daten in User-Cloud</div>
+  <div>Notizen / Listen / Reminders direkt in Google Drive / Sheets — Plattform speichert nur den Link</div>
+  <div class="max">−90% DB-Storage</div>
+</div>
+<div class="calc-row good">
+  <div>Cloudflare Workers parallel</div>
+  <div>Wenn Supabase-Limit nahe: dieselben Tools nochmal auf Cloudflare deployen (100k/Tag = 3M/Monat free)</div>
+  <div class="max">+6× Edge-Calls</div>
+</div>
+<div class="calc-row good">
+  <div>Lokales Mini-Modell (Tier-3-Skill)</div>
+  <div>User lädt einmal ein quantisiertes Phi-3-mini, nutzt es offline im Browser</div>
+  <div class="max">0 Server-Calls für diese User</div>
+</div>
+
+<h3 class="section-title">💰 Wann muss Geld fließen?</h3>
+
+<div class="note">
+  <strong>Schwelle ~2.000 aktive User</strong> bei realistischer Mischung — dann erst muss man entweder:
+  <ul style="margin: 6px 0 0 0; padding-left: 22px;">
+    <li>Auf Supabase-Pro upgraden (25 USD/Monat → 5× alle Limits)</li>
+    <li>Oder Cloudflare Workers anbinden (kostet nur wenn man Pro-Workers braucht)</li>
+    <li>Oder Premium-Tier einführen ($1/Monat = "5x Edge-Calls Garantie")</li>
+  </ul>
+  Vorher genug Zeit für: Förderung beantragen, AdSense laufen lassen, Affiliate-Links einbauen.
+</div>
+
+<h3 class="section-title">💸 Monetarisierung-Vektoren (nach deinem Vorschlag)</h3>
+
+<div class="calc-row head">
+  <div>Quelle</div><div>Konstellation</div><div>Realistisch</div>
+</div>
+<div class="calc-row">
+  <div>EU- / Bundes-Förderung</div>
+  <div>Bildung + KI + Inklusion ist ein heißes Trio</div>
+  <div class="max">5-100k € / Jahr</div>
+</div>
+<div class="calc-row">
+  <div>AdSense (dezent)</div>
+  <div>Auf Lern-Inhalten, nicht im Chat-Flow</div>
+  <div class="max">~10 €/Monat pro 1000 Visits</div>
+</div>
+<div class="calc-row">
+  <div>Affiliate Token-Kauf</div>
+  <div>Groq, OpenAI, Hugging Face haben Referral-Programme. Banner „Mehr Tokens? Hier 5 € → 5% an Earth 0.1"</div>
+  <div class="max">~5-15 % Provision</div>
+</div>
+<div class="calc-row">
+  <div>Premium-Tier (später)</div>
+  <div>2-3 €/Monat = mehr Tool-Calls, Storage, exklusive Lern-Module</div>
+  <div class="max">5-10 % Conversion</div>
+</div>
+
+<div class="verdict">
+  <strong>Antwort auf deine Frage: Ja, deutlich mehr User.</strong>
+  Mit user-eigenem Speicher + eigenen API-Keys passen auf Free-Tier ehrlich ~2.000 aktive bzw. 50.000 angemeldete User. Der echte Bottleneck ist die Edge-Function-Quota, nicht der Speicher. Solange du ihnen <span style="color:#4ade80; font-weight:600;">deine Skript-Skills sparsam designst</span> (kein unnötiger Edge-Call, lieber Browser-direkt wo es geht), reicht das locker bis zur Förderungs- oder AdSense-Phase.
+</div>
+
+<div class="options" style="margin-top:18px">
+  <div class="option" data-choice="confirm" onclick="toggleSelect(this)">
+    <div class="letter">✓</div>
+    <div class="content"><h3>Bestätigt — so planen wir</h3><p>User-eigener Speicher, Browser-direkte Skript-Calls wo möglich, später Premium/Förderung.</p></div>
+  </div>
+  <div class="option" data-choice="dive" onclick="toggleSelect(this)">
+    <div class="letter">🔍</div>
+    <div class="content"><h3>Mehr Tiefe</h3><p>Ich will pro Skill schon im Design wissen ob er Server- oder Browser-seitig läuft.</p></div>
+  </div>
+</div>

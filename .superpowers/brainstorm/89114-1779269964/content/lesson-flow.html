@@ -1,0 +1,272 @@
+<h2>Lesson-Flow: kurz lesen → sofort tun → live geprüft</h2>
+<p class="subtitle">Beispiel-Skill „Wetter". Drei Steps. Plattform schaut zu was du im Telegram tippst und entriegelt automatisch wenn's klappt.</p>
+
+<style>
+  .phone-frame {
+    background: #050b1f;
+    border: 2px solid rgba(255,255,255,0.15);
+    border-radius: 16px;
+    padding: 18px;
+    max-width: 420px;
+    margin: 16px 0;
+    color: #e2e8f0;
+  }
+  .progress-dots {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 14px;
+  }
+  .dot {
+    flex: 1; height: 4px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 2px;
+  }
+  .dot.done { background: #4ade80; }
+  .dot.active { background: #6366f1; }
+
+  .step-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .step-num {
+    background: #6366f1; color: white;
+    width: 22px; height: 22px; border-radius: 50%;
+    display: grid; place-items: center;
+    font-size: 11px; font-weight: 700;
+  }
+  .step-num.done { background: #4ade80; }
+  .step-title { font-size: 15px; font-weight: 700; color: #fff; }
+
+  .concept-box {
+    background: rgba(96,165,250,0.08);
+    border-left: 3px solid #60a5fa;
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 12px; line-height: 1.5;
+    color: #cbd5e1;
+    margin-bottom: 12px;
+  }
+  .concept-box h5 {
+    margin: 0 0 4px 0;
+    font-size: 10px; text-transform: uppercase;
+    color: #93c5fd; letter-spacing: 0.5px;
+  }
+
+  .diagram {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 6px;
+    padding: 10px;
+    margin-bottom: 12px;
+    font-family: ui-monospace, monospace;
+    font-size: 11px;
+    color: #cbd5e1;
+    text-align: center;
+  }
+
+  .task-box {
+    background: rgba(245,158,11,0.1);
+    border: 1px solid rgba(245,158,11,0.4);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 12px;
+    font-size: 13px;
+    color: #fde68a;
+  }
+  .task-box .label {
+    font-size: 10px; text-transform: uppercase; color: #fbbf24;
+    letter-spacing: 0.5px; margin-bottom: 4px;
+  }
+  .task-box code {
+    background: rgba(0,0,0,0.4); padding: 3px 8px;
+    border-radius: 4px; color: #fff; font-size: 12px;
+    display: inline-block; margin-top: 4px;
+  }
+
+  .live-status {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 12px;
+    color: #cbd5e1;
+    margin-bottom: 10px;
+  }
+  .live-status.success {
+    background: rgba(74,222,128,0.12);
+    border: 1px solid rgba(74,222,128,0.4);
+    color: #86efac;
+  }
+  .pulse {
+    width: 8px; height: 8px;
+    background: #6366f1; border-radius: 50%;
+    animation: pulse 1s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.8); }
+  }
+
+  .term {
+    text-decoration: underline dotted;
+    text-decoration-color: rgba(167,139,250,0.7);
+    cursor: help;
+    color: #c4b5fd;
+  }
+
+  .actions { display: flex; gap: 8px; }
+  .btn {
+    flex: 1; padding: 8px 12px; border-radius: 6px;
+    font-size: 12px; font-weight: 600;
+    border: none; cursor: pointer;
+  }
+  .btn.primary { background: #6366f1; color: white; }
+  .btn.ghost { background: rgba(255,255,255,0.08); color: #cbd5e1; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+  @media (max-width: 800px) { .row3 { grid-template-columns: 1fr; } }
+</style>
+
+<div class="row3">
+
+  <!-- STEP 1: Konzept -->
+  <div class="phone-frame">
+    <div class="progress-dots">
+      <div class="dot active"></div>
+      <div class="dot"></div>
+      <div class="dot"></div>
+    </div>
+    <div class="step-head">
+      <div class="step-num">1</div>
+      <div class="step-title">Was ist eine API?</div>
+    </div>
+
+    <div class="concept-box">
+      <h5>Konzept</h5>
+      Eine <span class="term">REST-API</span> ist ein Web-Dienst der wie eine Speisekarte funktioniert: du bestellst etwas Genaues per Adresse („Wetter für Berlin"), kriegst die Antwort als <span class="term">JSON</span> zurück. Kein Login, keine Webseite, keine Werbung.
+    </div>
+
+    <div class="diagram">
+      Du fragst &nbsp;→&nbsp; api.open-meteo.com<br>
+      &nbsp;<br>
+      Antwort kommt&nbsp;←&nbsp; { "temp": 8.4, "wind": 12 }
+    </div>
+
+    <p style="font-size:12px; color:#cbd5e1; margin-bottom:14px;">
+      Open-Meteo ist <strong>frei</strong> — kein Schlüssel nötig. Dein Agent lernt diesen Dienst jetzt zu sprechen.
+    </p>
+
+    <div class="actions">
+      <button class="btn ghost">Abbrechen</button>
+      <button class="btn primary">Verstanden →</button>
+    </div>
+  </div>
+
+  <!-- STEP 2: Praxis-Aufgabe -->
+  <div class="phone-frame">
+    <div class="progress-dots">
+      <div class="dot done"></div>
+      <div class="dot active"></div>
+      <div class="dot"></div>
+    </div>
+    <div class="step-head">
+      <div class="step-num done">✓</div>
+      <div class="step-title">Probier's selbst</div>
+    </div>
+
+    <div class="task-box">
+      <div class="label">Aufgabe</div>
+      Frag deinen Bot nach dem Wetter in irgendeiner Stadt. Du kannst es so schreiben:
+      <code>/wetter Hamburg</code>
+      oder einfach:
+      <code>Wie ist das Wetter in Köln?</code>
+    </div>
+
+    <div class="live-status">
+      <span class="pulse"></span>
+      <span>Wir hören mit — schreib jetzt in Telegram…</span>
+    </div>
+
+    <div class="concept-box" style="border-left-color:#a78bfa;">
+      <h5 style="color:#c4b5fd">Hinweis</h5>
+      Dein Bot weiß noch nicht alles. Wenn er antwortet „kenn ich nicht", dann nochmal mit `/wetter` davor probieren.
+    </div>
+
+    <div class="actions">
+      <button class="btn ghost">Zurück</button>
+      <button class="btn primary" disabled>Warte auf Aktion…</button>
+    </div>
+  </div>
+
+  <!-- STEP 3: Freischaltung -->
+  <div class="phone-frame">
+    <div class="progress-dots">
+      <div class="dot done"></div>
+      <div class="dot done"></div>
+      <div class="dot active"></div>
+    </div>
+    <div class="step-head">
+      <div class="step-num done">✓</div>
+      <div class="step-title">Geschafft! 🎉</div>
+    </div>
+
+    <div class="live-status success">
+      ✓ Erkannt: Du hast „/wetter Hamburg" geschickt
+    </div>
+
+    <div class="concept-box">
+      <h5>Was du jetzt kannst</h5>
+      Ab sofort beantwortet dein Bot Wetter-Fragen für jede Stadt. Verbraucht null <span class="term">Tokens</span> — läuft als pures Skript.
+    </div>
+
+    <div class="concept-box" style="border-left-color:#4ade80;">
+      <h5 style="color:#86efac">+ Freigeschaltet</h5>
+      <strong>🌤️ Wetter</strong> ist aktiv. Das wiederum macht <strong>📰 Tägliches Briefing</strong> in Tier 3 zur Hälfte verfügbar.
+    </div>
+
+    <div class="actions">
+      <button class="btn ghost">Zum Tech-Tree</button>
+      <button class="btn primary">Nächster Skill →</button>
+    </div>
+  </div>
+
+</div>
+
+<h3 style="color:#fff; margin-top: 22px; font-size: 14px;">⚙️ Verifikations-Mechanismen pro Skill-Typ</h3>
+
+<div class="row3" style="margin-top: 12px;">
+  <div class="phone-frame">
+    <div class="step-title" style="font-size:13px; margin-bottom:8px;">Action-Skill (Wetter, Web-Suche, ...)</div>
+    <p style="font-size:11px; color:#cbd5e1; margin:0;">
+      Live-Webhook-Listening: Plattform sieht jede Telegram-Nachricht des Users und erkennt
+      anhand des Patterns ob der Skill verwendet wurde. Auto-Unlock.
+    </p>
+  </div>
+  <div class="phone-frame">
+    <div class="step-title" style="font-size:13px; margin-bottom:8px;">Konzept-Skill (Tokens, RAG-Theorie)</div>
+    <p style="font-size:11px; color:#cbd5e1; margin:0;">
+      Multiple-Choice nach Erklärung: 2-3 kurze Fragen. Bei korrekt → unlock. Bei falsch → Erklärung
+      nochmal mit Hinweis worauf zu achten ist.
+    </p>
+  </div>
+  <div class="phone-frame">
+    <div class="step-title" style="font-size:13px; margin-bottom:8px;">Konfig-Skill (API-Keys, OAuth)</div>
+    <p style="font-size:11px; color:#cbd5e1; margin:0;">
+      Verifikation = der Key/Token funktioniert wirklich. Plattform pingt den Dienst kurz.
+      Bei OK → unlock automatisch.
+    </p>
+  </div>
+</div>
+
+<div class="options" style="margin-top:20px">
+  <div class="option" data-choice="ok" onclick="toggleSelect(this)">
+    <div class="letter">✓</div>
+    <div class="content"><h3>Genau so</h3><p>3-Step, Live-Webhook-Verifikation, automatische Unlocks. Mobil-tauglich.</p></div>
+  </div>
+  <div class="option" data-choice="more-cards" onclick="toggleSelect(this)">
+    <div class="letter">+</div>
+    <div class="content"><h3>Mehr Konzept-Tiefe</h3><p>Vor der Praxis 2-3 Konzept-Karten statt nur einer.</p></div>
+  </div>
+  <div class="option" data-choice="less" onclick="toggleSelect(this)">
+    <div class="letter">−</div>
+    <div class="content"><h3>Kürzer</h3><p>Direkt zur Aufgabe, Erklärung nur als kleines Info-Icon. Wer mehr wissen will klickt drauf.</p></div>
+  </div>
+</div>

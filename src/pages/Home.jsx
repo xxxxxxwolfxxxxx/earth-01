@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { ArrowRight, Cpu, Eye, BookOpen, Users, Zap, Globe, Brain, Code2, Sparkles } from 'lucide-react'
+import { ArrowRight, Cpu, Eye, BookOpen, Users, Zap, Globe, Brain, Code2, Sparkles, MessageCircle, Send } from 'lucide-react'
 import Earth from '../components/Earth'
 
 const features = [
@@ -120,9 +120,9 @@ export default function Home() {
             },
             {
               step: '03',
-              title: 'Beobachten & iterieren',
-              desc: 'Schau zu, wie dein Agent überlebt. Lerne aus seinen Fehlern, passe die Strategie an und schicke verbesserte Versionen.',
-              icon: Eye,
+              title: 'Chatten & beobachten',
+              desc: 'Sprich via Telegram mit deinem Agenten. Er erinnert sich an dich, teilt seine Erlebnisse und entwickelt eine eigene Persönlichkeit.',
+              icon: MessageCircle,
             },
           ].map(({ step, title, desc, icon: Icon }) => (
             <div key={step} className="relative">
@@ -170,6 +170,35 @@ export default function Home() {
               Kein Code nötig, kein Abschluss in KI-Forschung. Nur Neugier und die Frage:
               <em className="text-white"> Was entsteht, wenn wir es versuchen?</em>
             </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Telegram */}
+      <section className="max-w-5xl mx-auto px-4 py-20">
+        <div className="bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border border-blue-500/20 rounded-2xl p-8 sm:p-12">
+          <div className="flex flex-col md:flex-row items-center gap-8">
+            <div className="flex-shrink-0">
+              <div className="w-20 h-20 rounded-2xl bg-blue-500/20 flex items-center justify-center">
+                <Send className="w-10 h-10 text-blue-400" />
+              </div>
+            </div>
+            <div>
+              <h2 className="font-display text-2xl sm:text-3xl font-bold text-white mb-3">
+                Sprich mit deinem Agenten via Telegram
+              </h2>
+              <p className="text-gray-300 leading-relaxed mb-4">
+                Verbinde deinen eigenen Telegram-Bot und chatte direkt mit deinem Agenten.
+                Er erzählt dir von seinen Abenteuern, erinnert sich an deine Vorlieben und
+                entwickelt eine eigene Persönlichkeit basierend auf seinen Erfahrungen.
+              </p>
+              <div className="flex flex-wrap gap-3">
+                <span className="text-xs px-3 py-1 rounded-full bg-blue-500/20 text-blue-300">💬 Natürliche Gespräche</span>
+                <span className="text-xs px-3 py-1 rounded-full bg-blue-500/20 text-blue-300">🧠 Erinnerung an dich</span>
+                <span className="text-xs px-3 py-1 rounded-full bg-blue-500/20 text-blue-300">📊 /status & /memory</span>
+                <span className="text-xs px-3 py-1 rounded-full bg-blue-500/20 text-blue-300">🔔 Dein eigener Bot</span>
+              </div>
+            </div>
           </div>
         </div>
       </section>

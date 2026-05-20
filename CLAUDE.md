@@ -17,7 +17,7 @@ Eine persistente Welt, in der KI-Agenten leben, arbeiten, kooperieren und evolvi
 
 - Projekt-ID: `giyvmksetvberzrpvuhu`
 - URL: `https://giyvmksetvberzrpvuhu.supabase.co`
-- Tabellen: `profiles`, `world_state`, `world_tiles`, `agents`, `agent_memory`, `agent_actions`, `world_events`
+- Tabellen: `profiles`, `world_state`, `world_tiles`, `agents`, `agent_memory`, `agent_actions`, `world_events`, `agent_messages`, `agent_reminders`, `world_tech`, `alliances`
 - RLS aktiv auf allen Tabellen
 
 ## Deploy
@@ -50,7 +50,10 @@ npx vite build && npx netlify deploy --prod --dir=dist
 | Earth.jsx | Animierte Erde für Landing Page |
 | Starfield.jsx | Sternenhintergrund-Animation |
 | Footer.jsx | Footer |
-| LLMConfig.jsx | LLM-Provider-Konfiguration |
+| LLMConfig.jsx | LLM-Provider-Konfiguration (NVIDIA/OpenAI/Gemini Cloud-APIs) |
+| TechTreePanel.jsx | Technologiebaum-Anzeige (12 Techs in 5 Stufen) |
+| TelegramSetup.jsx | Telegram-Bot-Verknüpfung |
+| WebChat.jsx | Browser-Chat mit Agent (LLM-basiert) |
 
 ### Libraries (`src/lib/`)
 | Datei | Beschreibung |
@@ -71,10 +74,13 @@ npx vite build && npx netlify deploy --prod --dir=dist
 ### Edge Functions (`supabase/functions/`)
 | Datei | Beschreibung |
 |-------|-------------|
-| simulation-tick/ | Simulationsengine (pg_cron, jede Minute, intern 10 Ticks). Hex-Nachbarn (odd-r offset) |
+| simulation-tick/ | Simulationsengine (pg_cron, jede Minute, intern 10 Ticks). Hex-Nachbarn, Freeciv-Mechaniken (Ressourcen, Rollen, Tech, Kampf, Allianzen) |
 | spawn-agent/ | Agent erstellen (max 2 pro User) |
 | get-world-snapshot/ | Initialer World State |
 | suggest-action/ | Browser-LLM-Vorschlag annehmen |
+| register-telegram/ | Telegram-Bot verknuepfen |
+| telegram-webhook/ | Telegram-Nachrichten verarbeiten (6 Agent-Tools: web_search, set_reminder, world_status, my_status, nearby_agents, remember) |
+| unregister-telegram/ | Telegram-Bot trennen |
 
 ## Hex-Grid-System
 
@@ -116,13 +122,22 @@ npx vite build && npx netlify deploy --prod --dir=dist
 - Reproduktion: 2 Agenten nahe beieinander, Energie > 65, Personality-Crossover + Mutation
 - Wissenstransfer: Eltern vererben bis zu 3 Langzeit-Erinnerungen
 
+## Gedaechtnis-System
+
+- **Kurzzeit** (memory_type='short'): Simulationsereignisse (essen, bauen, Katastrophen, soziale Interaktionen). Max 20 pro Agent, aelteste werden geloescht.
+- **Langzeit** (memory_type='long'): Konsolidiert aus Kurzzeit waehrend Schlafphase (alle 40 Schlaf-Ticks). Top-Erinnerung wird befoeordert. Max 10 pro Agent.
+- **User** (memory_type='user'): Persoenliches ueber den User (Freunde, Verwandte, Aufgaben, Vorlieben). Extrahiert aus Telegram-Gespraechen via [REMEMBER]-Block im LLM-Prompt. Max 30 pro Agent. Hat `category`-Feld (person, task, preference, fact).
+- Wissenstransfer bei Geburt: Top 3 Langzeit-Erinnerungen der Eltern werden mit [Vererbt]-Prefix ans Kind kopiert
+- Tabelle: `agent_memory` mit Spalten: agent_id, memory_type, content, importance, tick, category
+
 ## Telegram-Integration
 
 - Jeder User erstellt eigenen Bot via @BotFather, Token im Profil gespeichert
 - Webhook automatisch gesetzt bei Registrierung
 - Edge Functions: register-telegram, telegram-webhook, unregister-telegram
 - Webhook-URL: `{SUPABASE_URL}/functions/v1/telegram-webhook?secret={webhook_secret}`
-- Chat-Antworten via Gemini Free API (GEMINI_API_KEY als Supabase Secret)
+- Chat-Antworten via NVIDIA API (LLM_API_KEY, LLM_BASE_URL, LLM_MODEL als Supabase Secrets)
+- LLM-Modell: moonshotai/kimi-k2.5 (NVIDIA API, OpenAI-kompatibel)
 - Slash-Commands (/status, /world, /memory, /sleep, /work) brauchen kein LLM
 - Nachrichten in agent_messages Tabelle (Realtime-faehig)
 - User-Nachricht setzt forced_phase='free' auf dem Agent
@@ -135,6 +150,66 @@ npx vite build && npx netlify deploy --prod --dir=dist
 - `docs/superpowers/plans/2026-05-18-hex-grid.md` — Hex-Grid Implementierungsplan (abgeschlossen)
 - `docs/superpowers/specs/2026-05-18-telegram-flex-rhythm-design.md` — Telegram + Flex Rhythm Spec
 - `docs/superpowers/plans/2026-05-18-telegram-flex-rhythm.md` — Telegram Implementierungsplan
+
+## Freeciv-Mechaniken (seit Migration 006)
+
+### Multi-Ressourcen-System
+- **Energie** (energy): Nahrung/Ueberleben, 0=Tod
+- **Material** (materials): Bau-Ressource, gesammelt von Tiles
+- **Wissen** (knowledge): Forschungs-Ressource, gesammelt von Tiles
+
+### Terrain-Ertraege (pro Tile-Typ pro Tick)
+| Tile | Nahrung | Material | Wissen |
+|------|---------|----------|--------|
+| food (f) | 1.5 | 0 | 0 |
+| empty (e) | 0.3 | 0.2 | 0 |
+| water (w) | 0.5 | 0 | 0.1 |
+| building (b) | 0 | 0.5 | 0.3 |
+| shelter (s) | 0.2 | 0 | 0.2 |
+| danger (d) | 0 | 0.8 | 0 |
+| farm (F) | 2.0 | 0 | 0 |
+| road (r) | 0.1 | 0.1 | 0 |
+
+### Agenten-Rollen (auto-zugewiesen alle 50 Ticks)
+| Rolle | Zuweisung | Bonus |
+|-------|-----------|-------|
+| farmer | priority < 0.4 | Food x1.5 |
+| builder | priority < 0.4 & coop > 0.6 | Build-Kosten x0.7 |
+| researcher | curiosity > 0.7 | Knowledge x2.0 |
+| guard | risk_tolerance > 0.7 | Attack x1.3, Defense x1.2 |
+| trader | social_mode > 0.7 | Trade-Bonus x1.5 |
+| generalist | default | Keine |
+
+### Technologiebaum (12 Techs, 5 Stufen)
+Tabelle: `world_tech` (Singleton). Forscher-Agenten tragen Wissen bei.
+- Stufe 1: agriculture, toolmaking, writing
+- Stufe 2: irrigation, bronze_working, masonry
+- Stufe 3: currency, medicine, iron_working
+- Stufe 4: philosophy, engineering
+- Stufe 5: democracy
+
+### Kampfsystem
+- Probabilistisch: `attackPower = attack * (0.5 + random * 0.5)` vs `defensePower = defense * (0.5 + random * 0.5) * terrainBonus`
+- Terrain-Verteidigungsbonus: shelter +50%, building +30%
+- Veteran-Status: 30% Chance bei Sieg, +20% auf attack/defense
+- Kills werden gezaehlt
+
+### Allianzen
+Tabelle: `alliances`. Agenten mit social_mode > 0.7 und rep > 0.2 koennen Allianzen gruenden (alle 40 Ticks geprueft).
+
+### Bau-Kosten (Energie + Material)
+| Gebaeude | Energie | Material |
+|----------|---------|----------|
+| Building (b) | 15 | 10 |
+| Shelter (s) | 10 | 8 |
+| Farm (F) | 12 | 5 |
+| Road (r) | 5 | 3 |
+
+### Per-User LLM-System
+- Jeder User speichert eigenen API-Key in `profiles` (llm_api_key, llm_base_url, llm_model)
+- Telegram-Webhook und WebChat nutzen den Key des Users
+- Default-Provider: NVIDIA NIM (moonshotai/kimi-k2.5, kostenlos)
+- Kein shared Server-Key mehr noetig
 
 ## Bekannte Einschraenkungen
 

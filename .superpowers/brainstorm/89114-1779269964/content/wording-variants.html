@@ -1,0 +1,145 @@
+<h2>Wie kommuniziert die Plattform „ich erkenne wenn du fertig bist"?</h2>
+<p class="subtitle">Acht Varianten in unterschiedlichen Tonarten. Klick deinen Favoriten an.</p>
+
+<style>
+  .v-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-top: 16px; }
+  .v-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px;
+    padding: 14px;
+    color: #e2e8f0;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .v-card:hover {
+    background: rgba(99,102,241,0.12);
+    border-color: rgba(99,102,241,0.4);
+    transform: translateY(-1px);
+  }
+  .v-tone {
+    font-size: 9px; text-transform: uppercase; letter-spacing: 1px;
+    color: #94a3b8;
+    margin-bottom: 6px;
+  }
+  .v-status {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 12px;
+    color: #cbd5e1;
+    margin-bottom: 8px;
+  }
+  .pulse {
+    width: 8px; height: 8px;
+    background: #6366f1; border-radius: 50%;
+    animation: pulse 1s infinite;
+    flex-shrink: 0;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.8); }
+  }
+  .v-note {
+    font-size: 10px; color: #94a3b8;
+    line-height: 1.4;
+  }
+  .v-card.original {
+    background: rgba(248,113,113,0.06);
+    border-color: rgba(248,113,113,0.3);
+  }
+  .v-card.original .v-tone { color: #fca5a5; }
+</style>
+
+<div class="v-grid">
+
+  <div class="v-card original" onclick="toggleSelect(this); this.dataset.choice='original'">
+    <div class="v-tone">Original (zu invasiv)</div>
+    <div class="v-status"><span class="pulse"></span><span>Wir hören mit — schreib jetzt in Telegram…</span></div>
+    <div class="v-note">Klingt nach Lauschangriff. Raus.</div>
+  </div>
+
+  <div class="v-card" onclick="toggleSelect(this); this.dataset.choice='wait-signal'">
+    <div class="v-tone">Sachlich</div>
+    <div class="v-status"><span class="pulse"></span><span>Warte auf deinen Befehl…</span></div>
+    <div class="v-note">Neutral, technisch klar. Geht in den meisten Apps.</div>
+  </div>
+
+  <div class="v-card" onclick="toggleSelect(this); this.dataset.choice='auto-check'">
+    <div class="v-tone">Technisch transparent</div>
+    <div class="v-status"><span class="pulse"></span><span>Auto-Erkennung läuft. Schreib in Telegram, sobald du bereit bist.</span></div>
+    <div class="v-note">Erklärt was passiert, ohne 'wir' zu nutzen.</div>
+  </div>
+
+  <div class="v-card" onclick="toggleSelect(this); this.dataset.choice='task-detect'">
+    <div class="v-tone">Aufgaben-zentriert</div>
+    <div class="v-status"><span class="pulse"></span><span>Aufgabe erfüllt sich automatisch, sobald du den Befehl tippst.</span></div>
+    <div class="v-note">Fokus auf die Aufgabe, nicht auf den Beobachter.</div>
+  </div>
+
+  <div class="v-card" onclick="toggleSelect(this); this.dataset.choice='bot-waits'">
+    <div class="v-tone">Bot als Subjekt</div>
+    <div class="v-status"><span class="pulse"></span><span>Dein Bot wartet. Schreib ihm.</span></div>
+    <div class="v-note">Schiebt den 'Beobachter' auf den Bot — natürlicher Empfänger einer Nachricht.</div>
+  </div>
+
+  <div class="v-card" onclick="toggleSelect(this); this.dataset.choice='playful'">
+    <div class="v-tone">Verspielt</div>
+    <div class="v-status"><span class="pulse"></span><span>Probier's. Wenn's klappt, springt der Step weiter.</span></div>
+    <div class="v-note">Locker, lädt ein. Macht klar dass nichts mitliest, sondern nur der Step weiterschaltet.</div>
+  </div>
+
+  <div class="v-card" onclick="toggleSelect(this); this.dataset.choice='instruction'">
+    <div class="v-tone">Direkt instruktiv</div>
+    <div class="v-status"><span class="pulse"></span><span>Tippe in Telegram → diese Karte erkennt es</span></div>
+    <div class="v-note">Klar, kurz, kein Mystery. „Karte erkennt" statt „Plattform überwacht".</div>
+  </div>
+
+  <div class="v-card" onclick="toggleSelect(this); this.dataset.choice='friend'">
+    <div class="v-tone">Freundlich</div>
+    <div class="v-status"><span class="pulse"></span><span>Ich freu mich auf deine erste Nachricht — schreib einfach los.</span></div>
+    <div class="v-note">Personifiziert leicht. Funktioniert nur wenn die ganze Plattform diesen Ton trifft.</div>
+  </div>
+
+  <div class="v-card" onclick="toggleSelect(this); this.dataset.choice='silent'">
+    <div class="v-tone">Minimal</div>
+    <div class="v-status"><span class="pulse"></span><span>Bereit.</span></div>
+    <div class="v-note">Nur ein Wort + pulsierender Punkt. Vertraut auf den Kontext (User hat die Aufgabe ja schon gesehen).</div>
+  </div>
+
+</div>
+
+<h3 style="color:#fff; margin-top: 24px; font-size: 14px;">📋 Mein Vorschlag</h3>
+
+<div style="background: rgba(74,222,128,0.08); border:1px solid rgba(74,222,128,0.35); border-radius:10px; padding: 14px; font-size: 13px; line-height: 1.6; color: #cbd5e1; margin-top: 10px;">
+
+  <strong>„Dein Bot wartet. Schreib ihm."</strong> — weil:
+  <ul style="margin: 8px 0 0 0; padding-left: 20px;">
+    <li>Subjekt ist der Bot, nicht die Plattform — die hört ja gar nichts ab</li>
+    <li>Aktive Aufforderung statt passives Warten</li>
+    <li>Funktioniert auch bei Skills die kein Telegram nutzen (dann: „Dein Agent wartet. Probier's im WebChat.")</li>
+    <li>Mobile-freundlich kurz</li>
+  </ul>
+
+  Bei Datenschutz-sensiblen Kontexten (etwa Sprach-Skills) ein zusätzliches Info-Icon mit Klick-Erklärung: „Wir lesen nichts mit. Das System erkennt nur das Format der Nachricht (z.B. `/wetter`), nicht den Inhalt."
+</div>
+
+<div class="options" style="margin-top: 18px">
+  <div class="option" data-choice="bot-waits" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content"><h3>„Dein Bot wartet. Schreib ihm."</h3><p>Bot als aktiver Empfänger — meine Empfehlung.</p></div>
+  </div>
+  <div class="option" data-choice="instruction" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content"><h3>„Tippe in Telegram → diese Karte erkennt es"</h3><p>Sehr klar dass die Karte schaltet, nicht die Plattform überwacht.</p></div>
+  </div>
+  <div class="option" data-choice="friend" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content"><h3>„Ich freu mich auf deine erste Nachricht…"</h3><p>Persönlichster Ton — passt wenn die ganze App so klingt.</p></div>
+  </div>
+  <div class="option" data-choice="silent" onclick="toggleSelect(this)">
+    <div class="letter">D</div>
+    <div class="content"><h3>„Bereit."</h3><p>Maximal puristisch. Vertraut auf Kontext.</p></div>
+  </div>
+</div>

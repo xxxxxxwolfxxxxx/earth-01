@@ -1,0 +1,104 @@
+<h2>Wie soll dein Agent visuell aussehen?</h2>
+<p class="subtitle">Der Kern der Dynastie: dein Hauptcharakter muss wie eine Person wirken, nicht wie ein Punkt. Klicke zum Auswählen.</p>
+
+<style>
+  .preview-tile {
+    width: 100%;
+    aspect-ratio: 1.2;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 14px;
+    position: relative;
+    overflow: hidden;
+  }
+  .char-pixel {
+    width: 64px; height: 64px;
+    image-rendering: pixelated;
+    background:
+      linear-gradient(#3b2415 0 100%) 0 0 / 64px 12px no-repeat,
+      linear-gradient(#f4c896 0 100%) 0 12px / 64px 20px no-repeat,
+      linear-gradient(#4a7fc4 0 100%) 0 32px / 64px 24px no-repeat,
+      linear-gradient(#2d2418 0 100%) 0 56px / 64px 8px no-repeat;
+    border-radius: 4px;
+  }
+  .char-emoji { font-size: 80px; line-height: 1; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.4)); }
+  .char-circle {
+    width: 72px; height: 72px; border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #a78bfa, #6d28d9);
+    box-shadow: 0 0 20px rgba(167,139,250,0.5), inset 0 -8px 16px rgba(0,0,0,0.3);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px; font-weight: 700; color: white;
+  }
+  .char-portrait {
+    width: 76px; height: 76px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #fce7f3, #fbcfe8);
+    border: 3px solid #1e293b;
+    display: grid; place-items: center;
+    font-size: 36px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  }
+  .name-label {
+    position: absolute; bottom: 8px;
+    font-size: 11px; color: white; font-weight: 600;
+    background: rgba(0,0,0,0.6); padding: 2px 8px; border-radius: 4px;
+  }
+</style>
+
+<div class="cards">
+  <div class="card" data-choice="pixel" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="preview-tile" style="background: linear-gradient(180deg, #4ade80 0%, #86c25f 100%);">
+        <div class="char-pixel"></div>
+        <span class="name-label">Gisela · Gen 3</span>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>🎮 Pixel-Art Sprites</h3>
+      <p><strong>Stardew Valley-Vibe.</strong> Jeder Agent ist ein 32x32 Pixel-Sprite mit Hut, Kleidung, Frisur. Personality-Slider beeinflussen das Aussehen. Generationen vererben Merkmale.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="emoji" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="preview-tile" style="background: linear-gradient(180deg, #1e293b 0%, #334155 100%);">
+        <div class="char-emoji">🧙‍♀️</div>
+        <span class="name-label">Gisela · Gen 3</span>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>✨ Emoji-Avatare</h3>
+      <p><strong>Schnell &amp; ausdrucksstark.</strong> Jeder Agent bekommt ein Emoji basierend auf Rolle (👨‍🌾 Bauer, 🛡️ Wache, 🔬 Forscher). Rang/Erfolg ändert das Emoji über Generationen.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="portrait" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="preview-tile" style="background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);">
+        <div class="char-portrait">👩‍🦰</div>
+        <span class="name-label">Gisela · Gen 3</span>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>🖼️ Portrait-Karten</h3>
+      <p><strong>RPG-Style.</strong> Generierte Charakter-Portraits (DiceBear/Boring Avatars) als kleine Karten. Auf der Karte ein Punkt, im Dashboard das volle Portrait. Vererbung: Kinder ähneln Eltern.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="glow" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="preview-tile" style="background: radial-gradient(circle, #1e1b4b 0%, #0f172a 100%);">
+        <div class="char-circle">G</div>
+        <span class="name-label">Gisela · Gen 3</span>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>🔮 Leuchtende Orbs</h3>
+      <p><strong>Abstrakt-mystisch.</strong> Agenten als energetische Lichtkugeln. Farbe = Personality, Glüh-Intensität = Erfolg/Energie. Dein Hauptcharakter pulsiert deutlich. Schick, aber weniger "Charakter".</p>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:24px">💡 <strong>Mein Vorschlag:</strong> Portrait-Karten — sie geben jedem Agent ein Gesicht, lassen sich automatisch generieren (kein Asset-Erstellungs-Aufwand), und Vererbung funktioniert algorithmisch (Kind-Portrait wird aus Eltern-Seeds gemischt). Pixel-Art wäre cooler, aber das ist Wochen an Sprite-Arbeit.</p>

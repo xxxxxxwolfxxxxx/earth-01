@@ -1,0 +1,259 @@
+<h2>Weitere kostenfreie Skills — Brainstorm</h2>
+<p class="subtitle">~25 Skills die uns null kosten + dem User echten Mehrwert + jeweils ein KI-/Tech-Konzept lehren. Sortiert nach Themen.</p>
+
+<style>
+  .group { margin-top: 22px; }
+  .group-title {
+    color: #fff; font-weight: 700; font-size: 14px;
+    margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
+  }
+  .skill-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 10px;
+  }
+  .sk {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    padding: 11px 13px;
+    color: #e2e8f0;
+  }
+  .sk-head {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 4px;
+  }
+  .sk-icon { font-size: 18px; line-height: 1; }
+  .sk-name { font-weight: 700; color: #fff; font-size: 13px; }
+  .sk-desc { font-size: 11px; color: #cbd5e1; line-height: 1.45; margin-bottom: 4px; }
+  .sk-foot { font-size: 10px; color: #94a3b8; display: flex; gap: 6px; flex-wrap: wrap; }
+  .sk-tag {
+    background: rgba(74,222,128,0.12);
+    color: #86efac;
+    padding: 1px 6px;
+    border-radius: 999px;
+    font-weight: 600;
+  }
+  .sk-tag.api { background: rgba(96,165,250,0.12); color: #93c5fd; }
+  .sk-tag.script { background: rgba(167,139,250,0.12); color: #c4b5fd; }
+  .sk-tag.learn { background: rgba(245,158,11,0.12); color: #fcd34d; }
+  .sk-cost { color: #4ade80; font-weight: 600; }
+</style>
+
+<div class="group">
+  <div class="group-title">⚙️ Werkzeuge die direkt was tun (Browser-only, 0 Tokens)</div>
+  <div class="skill-grid">
+
+    <div class="sk"><div class="sk-head"><div class="sk-icon">📷</div><div class="sk-name">QR-Code Generator</div></div>
+      <div class="sk-desc">URL, WLAN-Zugang, Visitenkarte → QR-Code im Telegram. Pure Browser-Lib.</div>
+      <div class="sk-foot"><span class="sk-tag script">script</span><span class="sk-tag learn">lehrt: Daten-Kodierung</span></div>
+    </div>
+
+    <div class="sk"><div class="sk-head"><div class="sk-icon">🔐</div><div class="sk-name">Passwort-Generator</div></div>
+      <div class="sk-desc">Sichere Passwörter mit konfigurierbarer Länge / Sonderzeichen / Diceware-Wörtern.</div>
+      <div class="sk-foot"><span class="sk-tag script">script</span><span class="sk-tag learn">lehrt: Entropie, Diceware</span></div>
+    </div>
+
+    <div class="sk"><div class="sk-head"><div class="sk-icon">🆔</div><div class="sk-name">Hash & UUID</div></div>
+      <div class="sk-desc">Hashe Text zu SHA-256, generiere UUIDs. Crypto-Subtle-API im Browser.</div>
+      <div class="sk-foot"><span class="sk-tag script">script</span><span class="sk-tag learn">lehrt: kryptografische Hashes</span></div>
+    </div>
+
+    <div class="sk"><div class="sk-head"><div class="sk-icon">🧮</div><div class="sk-name">Mathe-Übungen</div></div>
+      <div class="sk-desc">Generiert Aufgaben nach Schwierigkeit, prüft Antwort, Streak-Tracking.</div>
+      <div class="sk-foot"><span class="sk-tag script">script</span><span class="sk-tag learn">Bildung: Schule</span></div>
+    </div>
+
+    <div class="sk"><div class="sk-head"><div class="sk-icon">🎲</div><div class="sk-name">Würfel / Münze / Picker</div></div>
+      <div class="sk-desc">Zufalls-Entscheidungen: Wer kocht heute? Welcher Film? Reine RNG.</div>
+      <div class="sk-foot"><span class="sk-tag script">script</span><span class="sk-tag learn">lehrt: Pseudo-Zufall</span></div>
+    </div>
+
+    <div class="sk"><div class="sk-head"><div class="sk-icon">📝</div><div class="sk-name">Markdown-Render</div></div>
+      <div class="sk-desc">Notizen in Markdown schreiben, schön formatiert ausgeben.</div>
+      <div class="sk-foot"><span class="sk-tag script">script</span><span class="sk-tag learn">lehrt: Auszeichnungssprachen</span></div>
+    </div>
+
+    <div class="sk"><div class="sk-head"><div class="sk-icon">⏱️</div><div class="sk-name">Pomodoro-Timer</div></div>
+      <div class="sk-desc">25 Min arbeit, 5 Pause. Bot pingt dich. Nutzt die schon vorhandene Reminder-Infrastruktur.</div>
+      <div class="sk-foot"><span class="sk-tag script">script</span><span class="sk-tag learn">lehrt: Zeitmanagement, Cron</span></div>
+    </div>
+
+    <div class="sk"><div class="sk-head"><div class="sk-icon">💧</div><div class="sk-name">Trink-Erinnerung</div></div>
+      <div class="sk-desc">Alle 2h ein Glas Wasser. Sanfte Wiederkehrende-Reminder.</div>
+      <div class="sk-foot"><span class="sk-tag script">script</span><span class="sk-tag learn">lehrt: zyklische Tasks</span></div>
+    </div>
+
+  </div>
+</div>
+
+<div class="group">
+  <div class="group-title">🌐 Free-APIs ohne Key (kein Setup nötig)</div>
+  <div class="skill-grid">
+
+    <div class="sk"><div class="sk-head"><div class="sk-icon">📖</div><div class="sk-name">Wikipedia-Lookup</div></div>
+      <div class="sk-desc">„Was ist X?" → Kurzauszug aus Wikipedia. CORS-freundlich, unbegrenzt.</div>
+      <div class="sk-foot"><span class="sk-tag api">free-api</span><span class="sk-cost">0 €</span><span class="sk-tag learn">lehrt: Wissensgraphen</span></div>
+    </div>
+
+    <div class="sk"><div class="sk-head"><div class="sk-icon">💱</div><div class="sk-name">Wechselkurse</div></div>
+      <div class="sk-desc">„Wie viel sind 50 USD in EUR?" → frankfurter.app, no-auth, EZB-Daten.</div>
+      <div class="sk-foot"><span class="sk-tag api">free-api</span><span class="sk-cost">0 €</span><span class="sk-tag learn">lehrt: REST + JSON</span></div>
+    </div>
+
+    <div class="sk"><div class="sk-head"><div class="sk-icon">🌍</div><div class="sk-name">Länder-Infos</div></div>
+      <div class="sk-desc">Einwohner, Hauptstadt, Flagge, Sprachen. RestCountries.com.</div>
+      <div class="sk-foot"><span class="sk-tag api">free-api</span><span class="sk-cost">0 €</span><span class="sk-tag learn">lehrt: strukturierte Daten</span></div>
+    </div>
+
+    <div class="sk"><div class="sk-head"><div class="sk-icon">🌅</div><div class="sk-name">Sonnenauf-/Untergang</div></div>
+      <div class="sk-desc">Wann geht heute die Sonne unter? sunrise-sunset.org.</div>
+      <div class="sk-foot"><span class="sk-tag api">free-api</span><span class="sk-cost">0 €</span><span class="sk-tag learn">lehrt: Geo + Zeit</span></div>
+    </div>
+
+    <div class="sk"><div class="sk-head"><div class="sk-icon">🚨</div><div class="sk-name">Erdbeben-Live</div></div>
+      <div class="sk-desc">Letzte Erdbeben weltweit. USGS GeoJSON-Feed, open data.</div>
+      <div class="sk-foot"><span class="sk-tag api">free-api</span><span class="sk-cost">0 €</span><span class="sk-tag learn">lehrt: Open Data, GeoJSON</span></div>
+    </div>
+
+    <div class="sk"><div class="sk-head"><div class="sk-icon">🌫️</div><div class="sk-name">Luftqualität</div></div>
+      <div class="sk-desc">Wie sauber ist die Luft in deiner Stadt? Open-Meteo Air-API.</div>
+      <div class="sk-foot"><span class="sk-tag api">free-api</span><span class="sk-cost">0 €</span><span class="sk-tag learn">lehrt: Umwelt-Sensorik</span></div>
+    </div>
+
+    <div class="sk"><div class="sk-head"><div class="sk-icon">🗺️</div><div class="sk-name">Geo-Suche</div></div>
+      <div class="sk-desc">Adresse → Koordinaten oder umgekehrt. OpenStreetMap Nominatim.</div>
+      <div class="sk-foot"><span class="sk-tag api">free-api</span><span class="sk-cost">0 €</span><span class="sk-tag learn">lehrt: Geocoding</span></div>
+    </div>
+
+    <div class="sk"><div class="sk-head"><div class="sk-icon">🪙</div><div class="sk-name">Krypto-Preise</div></div>
+      <div class="sk-desc">Bitcoin/Ethereum/etc. CoinGecko Free-Tier (10-30 Calls/Min).</div>
+      <div class="sk-foot"><span class="sk-tag api">free-api</span><span class="sk-cost">0 €</span><span class="sk-tag learn">lehrt: Finanz-APIs</span></div>
+    </div>
+
+    <div class="sk"><div class="sk-head"><div class="sk-icon">📰</div><div class="sk-name">RSS-Reader</div></div>
+      <div class="sk-desc">Beliebige RSS-Feeds abonnieren, neue Einträge via Telegram. Lehrt RSS-Standard.</div>
+      <div class="sk-foot"><span class="sk-tag api">free</span><span class="sk-cost">0 €</span><span class="sk-tag learn">lehrt: RSS, Aggregation</span></div>
+    </div>
+
+    <div class="sk"><div class="sk-head"><div class="sk-icon">📚</div><div class="sk-name">Buch-Info (ISBN)</div></div>
+      <div class="sk-desc">ISBN scannen → Titel/Autor/Cover. Open Library API ohne Key.</div>
+      <div class="sk-foot"><span class="sk-tag api">free-api</span><span class="sk-cost">0 €</span><span class="sk-tag learn">lehrt: Library-Standards</span></div>
+    </div>
+
+    <div class="sk"><div class="sk-head"><div class="sk-icon">🐱</div><div class="sk-name">Wikipedia-Sprach-Detektor</div></div>
+      <div class="sk-desc">In welcher Sprache ist dieser Text? Pure Skript-Analyse.</div>
+      <div class="sk-foot"><span class="sk-tag script">script</span><span class="sk-cost">0 €</span><span class="sk-tag learn">lehrt: NLP-Grundlagen</span></div>
+    </div>
+
+  </div>
+</div>
+
+<div class="group">
+  <div class="group-title">🧠 Persönliches Tracking (User-Storage, 0 Server)</div>
+  <div class="skill-grid">
+
+    <div class="sk"><div class="sk-head"><div class="sk-icon">😊</div><div class="sk-name">Stimmungs-Tracker</div></div>
+      <div class="sk-desc">Täglich 1-5 Sterne, am Sonntag eine Wochen-Auswertung als Chart.</div>
+      <div class="sk-foot"><span class="sk-tag script">script</span><span class="sk-tag learn">lehrt: Zeitreihen, Self-Tracking</span></div>
+    </div>
+
+    <div class="sk"><div class="sk-head"><div class="sk-icon">💪</div><div class="sk-name">Gewohnheits-Tracker</div></div>
+      <div class="sk-desc">„Heute meditiert?" → Y/N. Streak-Berechnung, Erinnerung wenn Streak gefährdet.</div>
+      <div class="sk-foot"><span class="sk-tag script">script</span><span class="sk-tag learn">lehrt: Streaks, Habit-Forming</span></div>
+    </div>
+
+    <div class="sk"><div class="sk-head"><div class="sk-icon">📖</div><div class="sk-name">Lese-Tagebuch</div></div>
+      <div class="sk-desc">Bücher die du gelesen hast + Bewertung. Jahres-Statistik am Ende.</div>
+      <div class="sk-foot"><span class="sk-tag script">script</span><span class="sk-tag learn">lehrt: persönliche DB</span></div>
+    </div>
+
+    <div class="sk"><div class="sk-head"><div class="sk-icon">🎂</div><div class="sk-name">Geburtstags-Erinnerung</div></div>
+      <div class="sk-desc">Freunde + Verwandte eintragen, eine Woche vorher Hinweis.</div>
+      <div class="sk-foot"><span class="sk-tag script">script</span><span class="sk-tag learn">lehrt: zyklische Cron-Jobs</span></div>
+    </div>
+
+    <div class="sk"><div class="sk-head"><div class="sk-icon">🚗</div><div class="sk-name">Wartungs-Tagebuch</div></div>
+      <div class="sk-desc">Wann zuletzt Auto-Service, Filter-Wechsel, Reifen-Druck. Erinnert bei fällig.</div>
+      <div class="sk-foot"><span class="sk-tag script">script</span><span class="sk-tag learn">lehrt: Intervall-Tracking</span></div>
+    </div>
+
+    <div class="sk"><div class="sk-head"><div class="sk-icon">🃏</div><div class="sk-name">Vokabel-Karten</div></div>
+      <div class="sk-desc">Spaced-Repetition-Algorithmus (SM-2). Pures Skript, sehr effektiv.</div>
+      <div class="sk-foot"><span class="sk-tag script">script</span><span class="sk-tag learn">lehrt: Spaced Repetition</span></div>
+    </div>
+
+  </div>
+</div>
+
+<div class="group">
+  <div class="group-title">🛡️ Sicherheit & Privacy (Lehr-Wert hoch)</div>
+  <div class="skill-grid">
+
+    <div class="sk"><div class="sk-head"><div class="sk-icon">🚨</div><div class="sk-name">Passwort-Leak-Check</div></div>
+      <div class="sk-desc">„Wurde mein Passwort schon mal geleakt?" — HaveIBeenPwned mit k-Anonymity.</div>
+      <div class="sk-foot"><span class="sk-tag api">free-api</span><span class="sk-cost">0 €</span><span class="sk-tag learn">lehrt: Datenpannen, k-Anonymity</span></div>
+    </div>
+
+    <div class="sk"><div class="sk-head"><div class="sk-icon">🔒</div><div class="sk-name">URL-Sicherheits-Check</div></div>
+      <div class="sk-desc">Phishing-Heuristik auf URLs. Pure JS-Regeln (lange Domain, Tippfehler, etc.).</div>
+      <div class="sk-foot"><span class="sk-tag script">script</span><span class="sk-tag learn">lehrt: Phishing-Erkennung</span></div>
+    </div>
+
+    <div class="sk"><div class="sk-head"><div class="sk-icon">📜</div><div class="sk-name">JWT-Decoder</div></div>
+      <div class="sk-desc">Zerlegt einen JWT-Token in seine Bestandteile. Zeigt was im Token steht.</div>
+      <div class="sk-foot"><span class="sk-tag script">script</span><span class="sk-tag learn">lehrt: JWT, Claims</span></div>
+    </div>
+
+  </div>
+</div>
+
+<div class="group">
+  <div class="group-title">🎁 Spielerei / Auflockerung</div>
+  <div class="skill-grid">
+
+    <div class="sk"><div class="sk-head"><div class="sk-icon">😄</div><div class="sk-name">Witz des Tages</div></div>
+      <div class="sk-desc">Lokale Witz-Sammlung + JokeAPI (free) als Quelle.</div>
+      <div class="sk-foot"><span class="sk-tag api">free-api</span><span class="sk-cost">0 €</span></div>
+    </div>
+
+    <div class="sk"><div class="sk-head"><div class="sk-icon">💭</div><div class="sk-name">Zitat des Tages</div></div>
+      <div class="sk-desc">quotable.io (no-key) oder lokale Sammlung.</div>
+      <div class="sk-foot"><span class="sk-tag api">free-api</span><span class="sk-cost">0 €</span></div>
+    </div>
+
+    <div class="sk"><div class="sk-head"><div class="sk-icon">🪐</div><div class="sk-name">NASA Astro-Bild</div></div>
+      <div class="sk-desc">Astronomy Picture of the Day. NASA DEMO_KEY genug für persönliche Nutzung.</div>
+      <div class="sk-foot"><span class="sk-tag api">free-api</span><span class="sk-cost">0 €</span><span class="sk-tag learn">lehrt: NASA Open Data</span></div>
+    </div>
+
+  </div>
+</div>
+
+<h3 style="color:#fff; margin-top: 22px; font-size: 14px;">💡 Strategischer Wert</h3>
+
+<div style="background: rgba(99,102,241,0.08); border:1px solid rgba(99,102,241,0.3); border-radius:10px; padding: 14px; font-size: 12.5px; line-height: 1.6; color: #cbd5e1;">
+  Diese Skills sind <strong>perfekte „erste Erfolge"</strong> beim Onboarding:
+  <ul style="margin: 6px 0 0 0; padding-left: 22px;">
+    <li>Sie funktionieren ohne dass der User irgendeinen Key hat — sofort erfolgserlebnis</li>
+    <li>Jeder lehrt ein konkretes Konzept (REST-API, JWT, Hash, Spaced Repetition, ...)</li>
+    <li>Sie machen den Tech-Tree dichter und vielfältiger ohne Token-Last</li>
+    <li>Sie locken Bildungs-Förderungen an: „über 30 KI-Konzepte hands-on lehren"</li>
+  </ul>
+  Mein Vorschlag: <strong>10-15 davon in Tier 1 / 2 dazu</strong>, je nach Lehr-Wert. Erst nach LLM-Skills brauchen User wirklich Token-Budget — vorher haben sie schon viel Spaß.
+</div>
+
+<div class="options" style="margin-top: 18px">
+  <div class="option" data-choice="add-all" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content"><h3>Alle relevanten in Spec aufnehmen</h3><p>Tier 1 wird auf ~12 Skills aufgebläht, Tier 2 auf ~12. Mehr Vielfalt.</p></div>
+  </div>
+  <div class="option" data-choice="curated" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content"><h3>Kuratierte Top-10 dazu</h3><p>Nur die mit höchstem Lehrwert + Praxisnutzen. Tech-Tree bleibt schlank.</p></div>
+  </div>
+  <div class="option" data-choice="categories" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content"><h3>Nach Themen-Pfaden gliedern</h3><p>Mehrere Lern-Pfade ('Sicherheit', 'Daten-APIs', 'Persönliches Tracking') statt einer linearer Baum.</p></div>
+  </div>
+</div>

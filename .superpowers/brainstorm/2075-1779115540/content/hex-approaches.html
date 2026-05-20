@@ -1,0 +1,73 @@
+<h2>Hex-Grid für Earth 0.1 — Welcher Ansatz?</h2>
+<p class="subtitle">Civilization-Style Hexagonal Kacheln für die 2D-Weltkarte</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Canvas + Eigenes Hex-Rendering</h3>
+      <p>Wir malen die Hexagone selbst auf den bestehenden HTML Canvas. Keine neue Dependency. Hex-Math (offset coordinates, pixel ↔ hex conversion) kommt aus dem Red Blob Games Guide — dem Standardwerk für Hex-Grids.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pro</h4><ul>
+          <li>Keine neue Library</li>
+          <li>Volle Kontrolle über Look & Feel</li>
+          <li>Leichtgewichtig (~200 Zeilen Hex-Math)</li>
+          <li>Passt perfekt zum bestehenden Canvas-Code</li>
+        </ul></div>
+        <div class="cons"><h4>Contra</h4><ul>
+          <li>Hex-Math muss korrekt implementiert werden</li>
+          <li>Kein eingebautes Scrolling/Zoom</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>PixiJS (WebGL 2D Engine)</h3>
+      <p>Leistungsstarke 2D-Game-Engine. Rendert Hex-Tiles als Sprites/Polygone mit GPU-Beschleunigung. Großes Ökosystem, viele Hex-Grid-Beispiele.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pro</h4><ul>
+          <li>GPU-beschleunigt, sehr performant</li>
+          <li>Eingebauter Sprite-Support für Tile-Texturen</li>
+          <li>Zoom, Pan, Interaktion out-of-the-box</li>
+          <li>Großes Ökosystem (pixi-viewport, etc.)</li>
+        </ul></div>
+        <div class="cons"><h4>Contra</h4><ul>
+          <li>~500KB Bundle-Size</li>
+          <li>Neues Rendering-Paradigma (nicht mehr ctx.fillRect)</li>
+          <li>Komplexere Integration mit React</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>SVG + honeycomb-grid Library</h3>
+      <p><code>honeycomb-grid</code> ist eine spezialisierte Open-Source Hex-Grid-Library (TypeScript). Berechnet Hex-Koordinaten, Nachbarn, Pathfinding. Rendering via SVG-Polygone.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pro</h4><ul>
+          <li>Hex-Math komplett abstrahiert</li>
+          <li>TypeScript-native, gut getestet</li>
+          <li>SVG = CSS-Styling, Hover-Effekte, Tooltips nativ</li>
+          <li>Kleine Library (~15KB)</li>
+        </ul></div>
+        <div class="cons"><h4>Contra</h4><ul>
+          <li>SVG wird bei 900 Hexagonen etwas langsam</li>
+          <li>Weniger visueller Charme als Canvas/WebGL</li>
+          <li>Neue Dependency</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 2rem; padding: 1.5rem; background: rgba(255,255,255,0.03); border-radius: 12px; border: 1px solid rgba(255,255,255,0.08);">
+  <h3>💡 Meine Empfehlung: Option A</h3>
+  <p style="color: #aaa; line-height: 1.6;">
+    Für 30×30 = 900 Hex-Tiles brauchen wir keine Game-Engine. Der bestehende Canvas-Code lässt sich direkt auf Hex umstellen — statt <code>fillRect</code> malen wir <code>beginPath + moveTo/lineTo</code> für Sechsecke. Die Hex-Math kommt aus dem <strong>Red Blob Games Guide</strong> (Amit Patel), dem Standard-Referenzwerk das auch Civilization nutzt. Kein neues Package, ~200 Zeilen Code.
+  </p>
+</div>

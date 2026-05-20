@@ -1,0 +1,302 @@
+<h2>Lern-Pfade statt linearer Baum</h2>
+<p class="subtitle">Hub im Zentrum (Trunk-Skills wie API-Keys + Telegram), dann radial 7 Themen-Pfade. Jeder Pfad ist eine eigene Lern-Reise. Skills wachsen entlang der Pfade.</p>
+
+<style>
+  .tree-canvas {
+    background: linear-gradient(180deg, #050b1f 0%, #0a1525 100%);
+    border-radius: 12px;
+    padding: 18px;
+    color: #e2e8f0;
+    overflow-x: auto;
+  }
+  svg.paths-tree {
+    display: block;
+    width: 100%;
+    min-width: 1100px;
+    height: 700px;
+  }
+
+  .path-bg { stroke-width: 3; fill: none; opacity: 0.25; }
+  .path-1 { stroke: #60a5fa; }
+  .path-2 { stroke: #f87171; }
+  .path-3 { stroke: #a78bfa; }
+  .path-4 { stroke: #f59e0b; }
+  .path-5 { stroke: #4ade80; }
+  .path-6 { stroke: #06b6d4; }
+  .path-7 { stroke: #ec4899; }
+
+  .trunk-bg { fill: rgba(167,139,250,0.18); stroke: rgba(167,139,250,0.55); stroke-width: 2; }
+  .node-bg { fill: rgba(255,255,255,0.05); stroke: rgba(255,255,255,0.18); stroke-width: 1; rx: 8; ry: 8; }
+  .node-bg.done { fill: rgba(74,222,128,0.15); stroke: rgba(74,222,128,0.5); }
+  .node-bg.open { fill: rgba(96,165,250,0.15); stroke: rgba(96,165,250,0.55); }
+
+  .node-icon { font-size: 16px; }
+  .node-label { fill: #fff; font-size: 11px; font-weight: 500; }
+  .node-group { cursor: pointer; }
+  .node-group:hover .node-bg { fill: rgba(99,102,241,0.25); }
+
+  .path-label {
+    font-size: 12px;
+    font-weight: 700;
+    fill: #fff;
+  }
+  .path-label-icon { font-size: 16px; }
+
+  .legend {
+    margin-top: 18px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 8px;
+    font-size: 11px;
+  }
+  .legend-item {
+    background: rgba(255,255,255,0.04);
+    padding: 8px 10px;
+    border-radius: 8px;
+    border-left: 3px solid;
+    color: #cbd5e1;
+  }
+  .legend-item strong { color: #fff; }
+</style>
+
+<div class="tree-canvas">
+  <svg class="paths-tree" viewBox="0 0 1100 700"></svg>
+</div>
+
+<div class="legend">
+  <div class="legend-item" style="border-left-color:#a78bfa;"><strong>🌟 Hub</strong> — Voraussetzungen für alles (API-Keys, Telegram). Hier starten alle Pfade.</div>
+  <div class="legend-item" style="border-left-color:#60a5fa;"><strong>🌐 Daten aus dem Netz</strong> — REST-APIs, JSON, Open Data</div>
+  <div class="legend-item" style="border-left-color:#f87171;"><strong>🛡️ Sicherheit & Privatsphäre</strong> — Hashes, Passwörter, Leak-Check</div>
+  <div class="legend-item" style="border-left-color:#a78bfa;"><strong>🧠 Mich selbst verstehen</strong> — Stimmung, Gewohnheiten, Tracking</div>
+  <div class="legend-item" style="border-left-color:#f59e0b;"><strong>🤖 Sprachmodelle</strong> — LLM-Chat, RAG, Quantisierung</div>
+  <div class="legend-item" style="border-left-color:#4ade80;"><strong>⏰ Automation & Routinen</strong> — Reminder, Cron, Workflows</div>
+  <div class="legend-item" style="border-left-color:#06b6d4;"><strong>☁️ Eigene Cloud</strong> — Google Drive, GitHub, OneDrive</div>
+  <div class="legend-item" style="border-left-color:#ec4899;"><strong>🎁 Spielerei</strong> — QR, Witze, Zitate, NASA</div>
+</div>
+
+<script>
+const svg = document.querySelector("svg.paths-tree");
+const NS = "http://www.w3.org/2000/svg";
+
+// Hub-Skills (Mitte links)
+const HUB = [
+  { id: "api_keys", icon: "🔑", label: "API-Keys", x: 60, y: 320 },
+  { id: "telegram", icon: "🤖", label: "Telegram", x: 60, y: 380 },
+];
+
+// Pfade: { color, label, icon, anchor (Start-Punkt am Hub-Rand), skills: [{icon,label,offsetX,offsetY}] }
+const PATHS = [
+  {
+    color: 1, icon: "🌐", label: "Daten aus dem Netz",
+    skills: [
+      { icon: "🌤️", label: "Wetter",       x: 280, y: 50 },
+      { icon: "🔍", label: "Web-Suche",     x: 440, y: 30 },
+      { icon: "📖", label: "Wikipedia",     x: 600, y: 50 },
+      { icon: "💱", label: "Wechselkurse",  x: 440, y: 100 },
+      { icon: "🌍", label: "Länder-Info",   x: 600, y: 130 },
+      { icon: "🪙", label: "Krypto-Preise", x: 760, y: 90 },
+      { icon: "📰", label: "RSS-Reader",    x: 760, y: 30 },
+    ],
+  },
+  {
+    color: 2, icon: "🛡️", label: "Sicherheit",
+    skills: [
+      { icon: "🆔", label: "Hash & UUID",      x: 280, y: 170 },
+      { icon: "🔐", label: "Passwort-Gen.",     x: 440, y: 180 },
+      { icon: "🚨", label: "Leak-Check",       x: 600, y: 200 },
+      { icon: "🔒", label: "URL-Check",        x: 760, y: 170 },
+      { icon: "📜", label: "JWT-Decoder",      x: 760, y: 230 },
+    ],
+  },
+  {
+    color: 3, icon: "🧠", label: "Mich selbst verstehen",
+    skills: [
+      { icon: "📝", label: "Notizen",      x: 280, y: 270 },
+      { icon: "😊", label: "Stimmung",     x: 440, y: 270 },
+      { icon: "💪", label: "Gewohnheiten", x: 600, y: 280 },
+      { icon: "📖", label: "Lese-Tagebuch", x: 600, y: 330 },
+      { icon: "🎂", label: "Geburtstage",  x: 760, y: 310 },
+      { icon: "🚗", label: "Wartung",      x: 760, y: 360 },
+    ],
+  },
+  {
+    color: 4, icon: "🤖", label: "Sprachmodelle",
+    skills: [
+      { icon: "💬", label: "LLM-Chat",      x: 280, y: 370 },
+      { icon: "🍳", label: "Rezept-Berater",x: 440, y: 360 },
+      { icon: "📚", label: "RAG-Gedächtnis", x: 440, y: 420 },
+      { icon: "🌐", label: "Übersetzer",    x: 600, y: 390 },
+      { icon: "🎨", label: "Bild-Gen.",     x: 600, y: 440 },
+      { icon: "🗣️", label: "Sprache→Text",  x: 760, y: 410 },
+      { icon: "⚡", label: "Mini-Modell",    x: 920, y: 410 },
+    ],
+  },
+  {
+    color: 5, icon: "⏰", label: "Automation",
+    skills: [
+      { icon: "⏰", label: "Reminder",      x: 280, y: 470 },
+      { icon: "💧", label: "Trink-Erinn.",  x: 440, y: 480 },
+      { icon: "🍅", label: "Pomodoro",      x: 600, y: 500 },
+      { icon: "📰", label: "Tägl. Briefing",x: 760, y: 490 },
+      { icon: "🧠", label: "Zweites Gehirn",x: 920, y: 470 },
+    ],
+  },
+  {
+    color: 6, icon: "☁️", label: "Eigene Cloud",
+    skills: [
+      { icon: "📂", label: "Google Drive",  x: 280, y: 570 },
+      { icon: "🐙", label: "GitHub-Repo",   x: 440, y: 580 },
+      { icon: "🔵", label: "OneDrive",      x: 600, y: 580 },
+      { icon: "📊", label: "Quoten-Sicht",  x: 760, y: 570 },
+    ],
+  },
+  {
+    color: 7, icon: "🎁", label: "Spielerei",
+    skills: [
+      { icon: "📷", label: "QR-Code",       x: 280, y: 650 },
+      { icon: "🎲", label: "Würfel/Picker", x: 440, y: 660 },
+      { icon: "🧮", label: "Mathe-Übungen", x: 600, y: 660 },
+      { icon: "🃏", label: "Vokabel-Karten",x: 760, y: 650 },
+      { icon: "😄", label: "Witz/Zitat",    x: 920, y: 650 },
+      { icon: "🪐", label: "NASA-Bild",     x: 920, y: 590 },
+    ],
+  },
+];
+
+const NODE_W = 110, NODE_H = 30;
+const HUB_W = 110, HUB_H = 30;
+
+function drawNode(g, n, classes = "") {
+  const rect = document.createElementNS(NS, "rect");
+  rect.setAttribute("class", `node-bg ${classes}`);
+  rect.setAttribute("width", NODE_W);
+  rect.setAttribute("height", NODE_H);
+  g.appendChild(rect);
+
+  const icon = document.createElementNS(NS, "text");
+  icon.setAttribute("class", "node-icon");
+  icon.setAttribute("x", 12);
+  icon.setAttribute("y", NODE_H/2 + 5);
+  icon.textContent = n.icon;
+  g.appendChild(icon);
+
+  const label = document.createElementNS(NS, "text");
+  label.setAttribute("class", "node-label");
+  label.setAttribute("x", 32);
+  label.setAttribute("y", NODE_H/2 + 4);
+  label.textContent = n.label;
+  g.appendChild(label);
+}
+
+// Hub-Knoten zeichnen
+for (const h of HUB) {
+  const g = document.createElementNS(NS, "g");
+  g.setAttribute("transform", `translate(${h.x}, ${h.y})`);
+  g.setAttribute("class", "node-group");
+  // Hub-Style: violetter Hintergrund
+  const rect = document.createElementNS(NS, "rect");
+  rect.setAttribute("class", "trunk-bg");
+  rect.setAttribute("width", HUB_W);
+  rect.setAttribute("height", HUB_H);
+  rect.setAttribute("rx", 8); rect.setAttribute("ry", 8);
+  g.appendChild(rect);
+  const icon = document.createElementNS(NS, "text");
+  icon.setAttribute("class", "node-icon");
+  icon.setAttribute("x", 12);
+  icon.setAttribute("y", HUB_H/2 + 5);
+  icon.textContent = h.icon;
+  g.appendChild(icon);
+  const label = document.createElementNS(NS, "text");
+  label.setAttribute("class", "node-label");
+  label.setAttribute("x", 32);
+  label.setAttribute("y", HUB_H/2 + 4);
+  label.textContent = h.label;
+  g.appendChild(label);
+  svg.appendChild(g);
+}
+
+// Pfade zeichnen
+PATHS.forEach((path, pi) => {
+  // Hintergrund-Pfad (dicke transparente Bahn die alle Skills verbindet)
+  const hubAnchorX = HUB[0].x + HUB_W;
+  const hubAnchorY = (HUB[0].y + HUB[1].y + HUB_H) / 2;
+  const firstSkill = path.skills[0];
+  const startX = hubAnchorX;
+  const startY = hubAnchorY;
+  const skills = path.skills;
+  // Bahn: starte am Hub, durch alle Skills durch
+  let d = `M ${startX} ${startY} `;
+  for (let i = 0; i < skills.length; i++) {
+    const s = skills[i];
+    const tx = s.x + NODE_W/2, ty = s.y + NODE_H/2;
+    const px = i === 0 ? startX : skills[i-1].x + NODE_W/2;
+    const py = i === 0 ? startY : skills[i-1].y + NODE_H/2;
+    const midX = (px + tx) / 2;
+    d += `C ${midX} ${py} ${midX} ${ty} ${tx} ${ty} `;
+  }
+  const pathEl = document.createElementNS(NS, "path");
+  pathEl.setAttribute("d", d);
+  pathEl.setAttribute("class", `path-bg path-${path.color}`);
+  svg.appendChild(pathEl);
+
+  // Pfad-Label am Ende-Rand rechts
+  const last = skills[skills.length - 1];
+  const labelG = document.createElementNS(NS, "g");
+  labelG.setAttribute("transform", `translate(${last.x + NODE_W + 12}, ${last.y + 8})`);
+  const labelIcon = document.createElementNS(NS, "text");
+  labelIcon.setAttribute("class", "path-label-icon");
+  labelIcon.setAttribute("x", 0);
+  labelIcon.setAttribute("y", 14);
+  labelIcon.textContent = path.icon;
+  labelG.appendChild(labelIcon);
+  // We skip the text label to avoid clutter — color in legend tells the story
+  svg.appendChild(labelG);
+
+  // Skills zeichnen
+  for (const s of skills) {
+    const g = document.createElementNS(NS, "g");
+    g.setAttribute("class", "node-group");
+    g.setAttribute("transform", `translate(${s.x}, ${s.y})`);
+    drawNode(g, s);
+    svg.appendChild(g);
+  }
+});
+</script>
+
+<h3 style="color:#fff; margin-top: 22px; font-size: 14px;">🎯 Was sich dadurch ändert</h3>
+
+<div style="background: rgba(74,222,128,0.08); border:1px solid rgba(74,222,128,0.4); border-radius:10px; padding: 14px; font-size: 12.5px; line-height: 1.6; color: #cbd5e1;">
+
+  <strong>Statt linearem „Anfänger → Fortgeschrittener"</strong>:
+  <ul style="margin: 6px 0 12px 0; padding-left: 22px;">
+    <li>User wählt sein Interesse: „Ich will mehr Privatsphäre lernen" → klick auf 🛡️ Pfad</li>
+    <li>Jeder Pfad ist eigenständig nutzbar — niemand muss durch LLM-Stoff um Stimmungs-Tracking freizuschalten</li>
+    <li>Querverbindungen sind möglich: „Tägliches Briefing" braucht Wetter (🌐) + Reminder (⏰) + LLM-Chat (🤖) → mehrere Pfade „treffen sich"</li>
+    <li>Förderungs-Story wird stärker: <em>„7 Lern-Pfade, jeder ein eigenes Curriculum mit konkretem Werkzeug-Output"</em></li>
+  </ul>
+
+  <strong>MVP-Empfehlung (Phase 1):</strong>
+  <ul style="margin: 6px 0 0 0; padding-left: 22px;">
+    <li>🌟 Hub (API-Keys, Telegram) — Pflicht für alle</li>
+    <li>🌐 Daten aus dem Netz — komplett (7 Skills, alle zero-token)</li>
+    <li>🎁 Spielerei — 3-4 Skills für sofortige Erfolgserlebnisse</li>
+    <li>🛡️ Sicherheit — Hash, Passwort-Gen, Leak-Check (Bildungs-Goldmine)</li>
+    <li>🧠 Tracking — Notizen, Stimmung, Gewohnheiten</li>
+  </ul>
+  Das sind ~20 Skills. Tier 2 mit LLM-Pfad und Cloud-Speicher folgt in Phase 2.
+</div>
+
+<div class="options" style="margin-top: 18px">
+  <div class="option" data-choice="ok" onclick="toggleSelect(this)">
+    <div class="letter">✓</div>
+    <div class="content"><h3>Genau so</h3><p>7 Themen-Pfade, Hub im Zentrum, MVP wie vorgeschlagen.</p></div>
+  </div>
+  <div class="option" data-choice="adjust" onclick="toggleSelect(this)">
+    <div class="letter">!</div>
+    <div class="content"><h3>Pfade anders</h3><p>Sag mir wie du sie sortieren / umbenennen / zusammenlegen würdest.</p></div>
+  </div>
+  <div class="option" data-choice="layout" onclick="toggleSelect(this)">
+    <div class="letter">L</div>
+    <div class="content"><h3>Layout anpassen</h3><p>Visuelle Anordnung anders: Hub oben, Pfade nach unten — oder radial wie Sonnensystem.</p></div>
+  </div>
+</div>
