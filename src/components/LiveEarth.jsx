@@ -3,31 +3,97 @@ import * as THREE from 'three'
 import Globe from 'react-globe.gl'
 import { supabase } from '../lib/supabase'
 
-const EARTH_DAY     = '//unpkg.com/three-globe/example/img/earth-blue-marble.jpg'
-const EARTH_NIGHT   = '//unpkg.com/three-globe/example/img/earth-night.jpg'
-const BUMP_TEXTURE  = '//unpkg.com/three-globe/example/img/earth-topology.png'
-const SPECULAR_MAP  = '//unpkg.com/three-globe/example/img/earth-water.png'
-const STAR_BG       = '//unpkg.com/three-globe/example/img/night-sky.png'
+const EARTH_DAY   = '//unpkg.com/three-globe/example/img/earth-blue-marble.jpg'
+const EARTH_NIGHT = '//unpkg.com/three-globe/example/img/earth-night.jpg'
+const STAR_BG     = '//unpkg.com/three-globe/example/img/night-sky.png'
 
 const RING_LIFETIME_MS = 8000
+
+// Sonnen-Position berechnen: aktuelle UTC-Zeit → Längengrad mit Solar-Noon,
+// Deklination aus Tag des Jahres.
+function sunDirection(date = new Date()) {
+  const utcHours = date.getUTCHours() + date.getUTCMinutes() / 60 + date.getUTCSeconds() / 3600
+  const startOfYear = Date.UTC(date.getUTCFullYear(), 0, 1)
+  const dayOfYear = Math.floor((date.getTime() - startOfYear) / 86400000) + 1
+
+  const sunLng = (12 - utcHours) * 15                                     // Grad
+  const sunLat = 23.45 * Math.sin(((dayOfYear - 81) * 2 * Math.PI) / 365) // Deklination
+
+  // Konsistent zur three-globe lat/lng-zu-XYZ Konvention
+  const phi   = (90 - sunLat) * Math.PI / 180
+  const theta = (sunLng + 180) * Math.PI / 180
+  return new THREE.Vector3(
+    -Math.sin(phi) * Math.cos(theta),
+     Math.cos(phi),
+     Math.sin(phi) * Math.sin(theta),
+  ).normalize()
+}
+
+const VERTEX_SHADER = /* glsl */ `
+varying vec2 vUv;
+varying vec3 vWorldNormal;
+
+void main() {
+  vUv = uv;
+  vWorldNormal = normalize(mat3(modelMatrix) * normal);
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+`
+
+const FRAGMENT_SHADER = /* glsl */ `
+uniform sampler2D dayMap;
+uniform sampler2D nightMap;
+uniform vec3 sunDir;
+
+varying vec2 vUv;
+varying vec3 vWorldNormal;
+
+void main() {
+  vec3 day   = texture2D(dayMap,   vUv).rgb;
+  vec3 night = texture2D(nightMap, vUv).rgb;
+
+  float cosA = dot(normalize(vWorldNormal), normalize(sunDir));
+  // Sanfter Übergang am Terminator
+  float blend = smoothstep(-0.12, 0.12, cosA);
+
+  // Tag: leicht moduliert mit Lichtwinkel
+  vec3 dayLit = day * (max(cosA, 0.0) * 0.75 + 0.25);
+  // Nacht: Stadtlichter, leicht abgedunkelt
+  vec3 nightLit = night * 0.95;
+
+  vec3 color = mix(nightLit, dayLit, blend);
+  gl_FragColor = vec4(color, 1.0);
+}
+`
 
 export default function LiveEarth({ height = 900 }) {
   const globeRef = useRef()
   const [users, setUsers] = useState([])
   const [rings, setRings] = useState([])
 
-  // Material mit Tag-Textur + sanftem Glanz auf den Ozeanen
-  const earthMaterial = useMemo(() => {
+  // Earth-Material mit Day/Night-Shader
+  const { earthMaterial, sunUniformRef } = useMemo(() => {
     const loader = new THREE.TextureLoader()
-    return new THREE.MeshPhongMaterial({
-      map:         loader.load(EARTH_DAY),
-      bumpMap:     loader.load(BUMP_TEXTURE),
-      bumpScale:   0.6,
-      specularMap: loader.load(SPECULAR_MAP),
-      specular:    new THREE.Color('#888'),
-      shininess:   12,
+    const sunUniform = { value: sunDirection() }
+    const mat = new THREE.ShaderMaterial({
+      uniforms: {
+        dayMap:   { value: loader.load(EARTH_DAY) },
+        nightMap: { value: loader.load(EARTH_NIGHT) },
+        sunDir:   sunUniform,
+      },
+      vertexShader: VERTEX_SHADER,
+      fragmentShader: FRAGMENT_SHADER,
     })
+    return { earthMaterial: mat, sunUniformRef: sunUniform }
   }, [])
+
+  // Sonne wandert mit der Erddrehung: alle 60 Sekunden updaten
+  useEffect(() => {
+    const tick = () => { sunUniformRef.value = sunDirection() }
+    tick()
+    const id = setInterval(tick, 60_000)
+    return () => clearInterval(id)
+  }, [sunUniformRef])
 
   // Initial-Daten laden
   useEffect(() => {
@@ -50,7 +116,7 @@ export default function LiveEarth({ height = 900 }) {
     return () => { cancelled = true }
   }, [])
 
-  // Realtime auf agent_activity
+  // Realtime-Pulse
   useEffect(() => {
     const channel = supabase
       .channel('live-earth-' + Date.now())
@@ -67,42 +133,62 @@ export default function LiveEarth({ height = 900 }) {
     return () => supabase.removeChannel(channel)
   }, [])
 
-  // Scene-Setup: Sonne (DirectionalLight), Ambient, Mond
+  // Scene-Setup: Sonnen-DirectionalLight (für den Mond!), Mond, Sterne
   useEffect(() => {
     const g = globeRef.current
     if (!g) return
 
-    // Sonne — von rechts oben. Sorgt für Tag-/Nachtgrenze auf dem Globus.
-    const sun = new THREE.DirectionalLight(0xfff2cc, 1.6)
-    sun.position.set(400, 200, 350)
-    g.scene().add(sun)
+    const scene = g.scene()
 
-    // Dezentes Umgebungslicht damit Nachtseite nicht völlig schwarz ist
-    const ambient = new THREE.AmbientLight(0x223355, 0.55)
-    g.scene().add(ambient)
+    // Sun-Light positionieren — gleiche Richtung wie der Shader-Uniform
+    const sunPos = sunDirection().multiplyScalar(800)
+    const sun = new THREE.DirectionalLight(0xfff2cc, 1.4)
+    sun.position.copy(sunPos)
+    scene.add(sun)
 
-    // Mond: warm-weißes Sphäre, leicht selbstleuchtend, mit subtilem Glow
+    const ambient = new THREE.AmbientLight(0x223355, 0.15)
+    scene.add(ambient)
+
+    // Mond
     const moonGroup = new THREE.Group()
-    const moonGeo  = new THREE.SphereGeometry(18, 48, 48)
-    const moonMat  = new THREE.MeshStandardMaterial({
+    const moonGeo = new THREE.SphereGeometry(18, 48, 48)
+    const moonMat = new THREE.MeshStandardMaterial({
       color: 0xfdf5d3,
       emissive: 0xaa9966,
-      emissiveIntensity: 0.45,
-      roughness: 0.6,
+      emissiveIntensity: 0.5,
+      roughness: 0.65,
       metalness: 0.0,
     })
-    const moon = new THREE.Mesh(moonGeo, moonMat)
-    moonGroup.add(moon)
-    // Glow-Halo
-    const haloGeo = new THREE.SphereGeometry(22, 32, 32)
-    const haloMat = new THREE.MeshBasicMaterial({
-      color: 0xfff4cf, transparent: true, opacity: 0.12, depthWrite: false,
-    })
-    moonGroup.add(new THREE.Mesh(haloGeo, haloMat))
+    moonGroup.add(new THREE.Mesh(moonGeo, moonMat))
+    // Halo
+    moonGroup.add(new THREE.Mesh(
+      new THREE.SphereGeometry(22, 32, 32),
+      new THREE.MeshBasicMaterial({ color: 0xfff4cf, transparent: true, opacity: 0.12, depthWrite: false }),
+    ))
     moonGroup.position.set(-320, 140, -180)
-    g.scene().add(moonGroup)
+    scene.add(moonGroup)
 
-    // Kamera + Auto-Rotate
+    // Sonne als sichtbarer Glow (klein, weit weg in Sonnenrichtung)
+    const sunGlowGroup = new THREE.Group()
+    sunGlowGroup.add(new THREE.Mesh(
+      new THREE.SphereGeometry(30, 32, 32),
+      new THREE.MeshBasicMaterial({ color: 0xfff2aa, transparent: true, opacity: 0.85 }),
+    ))
+    sunGlowGroup.add(new THREE.Mesh(
+      new THREE.SphereGeometry(50, 32, 32),
+      new THREE.MeshBasicMaterial({ color: 0xfff5bb, transparent: true, opacity: 0.18, depthWrite: false }),
+    ))
+    sunGlowGroup.position.copy(sunPos);
+    scene.add(sunGlowGroup)
+
+    // Sonne (Light + visuelle Sphere) jeden Tick mitlaufen lassen
+    const moveSun = () => {
+      const p = sunDirection().multiplyScalar(800)
+      sun.position.copy(p)
+      sunGlowGroup.position.copy(p)
+    }
+    const sunMoveId = setInterval(moveSun, 60_000)
+
     g.controls().autoRotate = true
     g.controls().autoRotateSpeed = 0.35
     g.controls().enableZoom = false
@@ -110,13 +196,12 @@ export default function LiveEarth({ height = 900 }) {
     g.pointOfView({ lat: 25, lng: 10, altitude: 2.2 }, 0)
 
     return () => {
-      g.scene().remove(sun)
-      g.scene().remove(ambient)
-      g.scene().remove(moonGroup)
+      clearInterval(sunMoveId)
+      scene.remove(sun, ambient, moonGroup, sunGlowGroup)
     }
   }, [])
 
-  // Responsive Größe
+  // Responsive
   const [size, setSize] = useState(() => {
     if (typeof window === 'undefined') return { w: 1000, h: height }
     return {
@@ -142,6 +227,7 @@ export default function LiveEarth({ height = 900 }) {
         backgroundImageUrl={STAR_BG}
         backgroundColor="rgba(0,0,0,0)"
         globeMaterial={earthMaterial}
+        showAtmosphere={true}
         atmosphereColor="#7ec8ff"
         atmosphereAltitude={0.22}
 
