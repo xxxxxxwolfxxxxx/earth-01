@@ -1,6 +1,10 @@
+import { lazy, Suspense } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowRight, Network, Key, BookOpen, Sparkles, Zap, Brain, Smartphone, Lock, Send } from 'lucide-react'
-import LiveEarth from '../components/LiveEarth'
+
+// LiveEarth ist groß (three.js + react-globe.gl + astronomy-engine ≈ 1 MB).
+// Lazy laden, damit der Hero-Text schon sichtbar ist während die Erde im Hintergrund nachlädt.
+const LiveEarth = lazy(() => import('../components/LiveEarth'))
 
 const features = [
   {
@@ -40,8 +44,10 @@ export default function Home() {
     <div>
       {/* Hero */}
       <section className="min-h-screen flex flex-col items-center justify-center text-center px-2 sm:px-4 pt-16 pb-8 relative">
-        <div className="w-full flex justify-center -mb-12 sm:-mb-16">
-          <LiveEarth height={900} />
+        <div className="w-full flex justify-center -mb-12 sm:-mb-16 min-h-[400px]">
+          <Suspense fallback={<div className="text-gray-500 text-sm pt-32">Lade Welt …</div>}>
+            <LiveEarth height={900} />
+          </Suspense>
         </div>
         <div className="max-w-3xl relative">
           <h1 className="font-display text-5xl sm:text-7xl font-bold text-white leading-tight tracking-tight">
