@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { matchSkill } from "../_shared/skillRegistry.ts";
 import { executeSkill } from "../_shared/skillHandlers.ts";
 import { BOT } from "../_shared/botMessages.ts";
+import { transcribeTelegramVoice } from "../_shared/transcribe.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -22,7 +23,7 @@ Deno.serve(async (req) => {
   // Webhook-Secret prüfen
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, telegram_bot_token, telegram_chat_id")
+    .select("id, telegram_bot_token, telegram_chat_id, whisper_key, llm_api_key")
     .eq("telegram_webhook_secret", secret)
     .single();
   if (!profile) {
@@ -35,7 +36,26 @@ Deno.serve(async (req) => {
   const msg = update?.message;
   if (!msg) return new Response("ok-no-msg", { headers: CORS });
 
-  const text = (msg.text ?? "").trim();
+  // ── Voice / Audio: transkribieren und wie Text weiterbehandeln ──
+  let text = (msg.text ?? "").trim();
+  if (!text && (msg.voice || msg.audio)) {
+    const voice = msg.voice ?? msg.audio;
+    const transcript = await transcribeTelegramVoice({
+      botToken: profile.telegram_bot_token,
+      voice: { file_id: voice.file_id, mime_type: voice.mime_type },
+      whisperKey: profile.whisper_key,
+      llmKey: profile.llm_api_key,
+    });
+    if (!transcript.ok || !transcript.text) {
+      await sendTelegram(profile.telegram_bot_token, msg.chat.id,
+        `🎤 Konnte deine Sprachnachricht nicht verstehen: ${transcript.error ?? "Unbekannter Fehler"}`);
+      return new Response("ok-voice-fail", { headers: CORS });
+    }
+    text = transcript.text.trim();
+    // Kurze Bestätigung was verstanden wurde
+    await sendTelegram(profile.telegram_bot_token, msg.chat.id, `🎤 „${text}"`);
+  }
+
   if (!text) return new Response("ok-no-text", { headers: CORS });
 
   // chat_id aktualisieren falls noch nicht gesetzt
