@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Key, Check, X, ExternalLink, Eye, EyeOff, Trash2, ShieldCheck, Sparkles, Send, Link2, Unlink } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Key, Check, X, ExternalLink, Eye, EyeOff, Trash2, ShieldCheck, Sparkles, Send, Link2, Unlink, LogIn } from 'lucide-react'
 import {
   fetchUserKeys, saveUserKey, testKey, deleteUserKey,
   callTelegramAction,
   SERVICE_CATALOG, CATEGORIES,
 } from '../lib/keyService'
+import { useAuth } from '../contexts/AuthContext'
 
 function mask(key) {
   if (!key) return ''
@@ -13,6 +15,7 @@ function mask(key) {
 }
 
 export default function Keys() {
+  const { user, loading: authLoading } = useAuth()
   const [keys, setKeys] = useState({})
   const [edits, setEdits] = useState({})
   const [results, setResults] = useState({})
@@ -22,8 +25,31 @@ export default function Keys() {
   const [filter, setFilter] = useState('all')
 
   useEffect(() => {
+    if (!user) { setLoading(false); return }
     fetchUserKeys().then(k => { setKeys(k ?? {}); setLoading(false) })
-  }, [])
+  }, [user])
+
+  // Auth-Gate
+  if (!authLoading && !user) {
+    return (
+      <div className="max-w-xl mx-auto px-4 pt-32 pb-16 text-center">
+        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-nebula-500/10 border border-nebula-500/20 text-nebula-400 text-sm mb-6">
+          <Key className="w-4 h-4" /> Schlüssel-Zentrale
+        </div>
+        <h1 className="font-display text-3xl sm:text-4xl font-bold text-white mb-4">Login benötigt</h1>
+        <p className="text-gray-400 mb-8 leading-relaxed">
+          Deine API-Schlüssel werden in deinem Profil gespeichert. Dafür musst du erst angemeldet sein —
+          ein Klick reicht (GitHub oder Google) und niemand sieht deine Keys außer dir.
+        </p>
+        <Link
+          to="/login"
+          className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-nebula-500 to-blue-600 text-white rounded-xl font-display font-semibold no-underline hover:shadow-lg hover:shadow-nebula-500/25 transition"
+        >
+          <LogIn className="w-4 h-4" /> Zum Login
+        </Link>
+      </div>
+    )
+  }
 
   async function save(field) {
     const val = (edits[field] ?? '').trim()
