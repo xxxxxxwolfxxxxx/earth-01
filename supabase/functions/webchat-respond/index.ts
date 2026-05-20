@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { availableToolsForUser, toolsGuideText } from "../_shared/toolRegistry.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -48,13 +49,27 @@ Deno.serve(async (req) => {
   }
 
   const { data: profile } = await supabase
-    .from("profiles").select("llm_api_key, llm_base_url, llm_model, dynasty_name, dynasty_emoji").eq("id", user_id).single();
+    .from("profiles").select("llm_api_key, llm_base_url, llm_model, dynasty_name, dynasty_emoji, groq_api_key, huggingface_key, resend_api_key").eq("id", user_id).single();
   if (!profile?.llm_api_key) {
     return new Response(JSON.stringify({ error: "Kein LLM-Key in Profile gesetzt" }), {
       status: 400,
       headers: { ...CORS, "Content-Type": "application/json" },
     });
   }
+
+  // Verfügbare Tools für diesen User basierend auf freigeschalteten Achievements
+  const { data: unlockedRows } = await supabase
+    .from("dynasty_achievements")
+    .select("achievement_id")
+    .eq("user_id", user_id);
+  const unlockedSet = new Set((unlockedRows ?? []).map((r: any) => r.achievement_id));
+  const availableTools = availableToolsForUser(unlockedSet, {
+    llm_api_key: profile.llm_api_key,
+    groq_api_key: profile.groq_api_key,
+    huggingface_key: profile.huggingface_key,
+    resend_api_key: profile.resend_api_key,
+  });
+  const toolsGuide = toolsGuideText(availableTools);
 
   // Lade letzte Nachrichten, Langzeit-Erinnerungen, User-Memories
   const { data: recent } = await supabase
@@ -108,8 +123,14 @@ ${userMemText}
 Bisheriger Chat:
 ${chatHistory}
 
-Antworte kurz (1-3 Sätze), freundlich und in character auf Deutsch.
-Du bist kein generischer Chatbot — du bist ein Wesen mit Erfahrungen aus der Simulation.`;
+DEINE WERKZEUGE:
+${toolsGuide}
+
+WICHTIG: Erfinde NIE Tool-Namen die nicht in der Liste oben stehen. Wenn die Liste leer ist oder "keine Werkzeuge" sagt, dann antworte ehrlich: "Ich habe noch nichts freigeschaltet. Du musst in der Simulation Achievements erreichen — z.B. ein Gebäude bauen für 'Zeitmesser:in' (Tool: reminder), oder die Tech 'Schrift' erforschen für 'Schriftgelehrte:r' (Tool: web_search). Schau auf /chronik in den Tools-Tab."
+
+Wenn der User dich nach deinen Fähigkeiten fragt, zähl AUSSCHLIESSLICH die echten freigeschalteten Tools auf. Wenn du eines aufrufen willst, nutze genau das im Beispiel angegebene Format.
+
+Antworte konkret auf die FRAGE des Users (nicht ausweichen). Max 4 Sätze, auf Deutsch, in character als ${displayName}.`;
 
   // LLM-Call
   const baseUrl = (profile.llm_base_url || "https://integrate.api.nvidia.com/v1").replace(/\/$/, "");
