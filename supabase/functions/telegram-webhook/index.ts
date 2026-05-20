@@ -123,6 +123,9 @@ Deno.serve(async (req) => {
       const result = await executeSkill(skill.id, ctx);
       await supabase.from("lesson_sessions").update({ state: "verified", completed_at: new Date().toISOString() }).eq("id", session.id);
       await supabase.from("user_skills").upsert({ user_id: profile.id, skill_id: skill.id }, { onConflict: "user_id,skill_id" });
+      if (result.image) {
+        await sendTelegramPhoto(profile.telegram_bot_token, msg.chat.id, result.image, result.imageCaption ?? "");
+      }
       await sendTelegram(profile.telegram_bot_token, msg.chat.id,
         `${result.reply}\n\n✓ Skill '${skill.id}' freigeschaltet — schau auf der Plattform den Tech-Tree an.`);
       return new Response("ok-verified", { headers: CORS });
@@ -135,7 +138,15 @@ Deno.serve(async (req) => {
   // Skill ist freigeschaltet: einfach ausführen
   const ctx = { supabase, user_id: profile.id, message: text };
   const result = await executeSkill(skill.id, ctx);
-  await sendTelegram(profile.telegram_bot_token, msg.chat.id, result.reply);
+
+  if (result.image) {
+    await sendTelegramPhoto(profile.telegram_bot_token, msg.chat.id, result.image, result.imageCaption ?? "");
+    if (result.reply) {
+      await sendTelegram(profile.telegram_bot_token, msg.chat.id, result.reply);
+    }
+  } else {
+    await sendTelegram(profile.telegram_bot_token, msg.chat.id, result.reply);
+  }
 
   // RAG-Ingestion: bei notes/mood/habits Schreibvorgängen Notiz in Cloud + Index spiegeln
   if (["notes", "mood", "habits"].includes(skill.id) && profile.cloud_provider && profile.huggingface_key) {
@@ -181,4 +192,18 @@ async function sendTelegram(token: string | null, chat_id: any, text: string): P
       body: JSON.stringify({ chat_id, text, parse_mode: "HTML" }),
     });
   } catch (e) { console.warn("Telegram send failed:", e); }
+}
+
+async function sendTelegramPhoto(token: string, chat_id: any, blob: Blob, caption: string): Promise<void> {
+  if (!token || !chat_id) return;
+  try {
+    const form = new FormData();
+    form.append("chat_id", String(chat_id));
+    form.append("caption", caption);
+    form.append("photo", blob, "image.png");
+    await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+      method: "POST",
+      body: form,
+    });
+  } catch (e) { console.warn("Telegram sendPhoto failed:", e); }
 }

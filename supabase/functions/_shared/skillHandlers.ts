@@ -5,6 +5,7 @@
 import { BOT } from "./botMessages.ts";
 import { findRelevant, QueryHit } from "./ragQuery.ts";
 import { CloudConfig } from "./cloudAdapters.ts";
+import { generateImage } from "./imageGen.ts";
 
 export interface SkillContext {
   supabase: any;
@@ -14,6 +15,8 @@ export interface SkillContext {
 
 export interface SkillResult {
   reply: string;
+  image?: Blob;
+  imageCaption?: string;
 }
 
 // ─── Pattern B: Web-APIs ──────────────────────────────────
@@ -213,6 +216,7 @@ export async function executeSkill(skill_id: string, ctx: SkillContext): Promise
     case "pomodoro": return skillPomodoro(ctx);
     case "ask_memory": return skillAskMemory(ctx);
     case "quota_check": return skillQuotaCheck(ctx);
+    case "image_gen": return skillImageGen(ctx);
     default: return { reply: BOT.unknown_command() };
   }
 }
@@ -434,4 +438,37 @@ export async function skillQuotaCheck(ctx: SkillContext): Promise<SkillResult> {
 
   const results = await Promise.all(probes);
   return { reply: lines.concat(results).join("\n") };
+}
+
+// ─── Bild-Generation: HF FLUX/SDXL als Default, Replicate als Premium ─────
+
+export async function skillImageGen(ctx: SkillContext): Promise<SkillResult> {
+  const m = ctx.message.match(/(?:\/bild|\/image|mal mir|bild von|bild:)\s+(.+)/i);
+  const prompt = (m?.[1] ?? "").trim();
+  if (!prompt) {
+    return { reply: "Was soll ich malen? Probier: /bild ein Astronaut auf einem Skateboard im All" };
+  }
+
+  const { data: profile } = await ctx.supabase
+    .from("profiles")
+    .select("huggingface_key, replicate_key")
+    .eq("id", ctx.user_id).single();
+  if (!profile?.huggingface_key && !profile?.replicate_key) {
+    return { reply: "Erst Hugging-Face- oder Replicate-Key auf /keys hinterlegen." };
+  }
+
+  const result = await generateImage({
+    prompt,
+    hfKey: profile.huggingface_key,
+    replicateKey: profile.replicate_key,
+  });
+
+  if (!result.ok || !result.blob) {
+    return { reply: `🎨 Bild-Erzeugung fehlgeschlagen: ${result.error ?? "Unbekannt"}` };
+  }
+  return {
+    reply: "",
+    image: result.blob,
+    imageCaption: `🎨 „${prompt}"  ·  ${result.provider}/${result.model}`,
+  };
 }
