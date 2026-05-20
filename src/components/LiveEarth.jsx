@@ -24,29 +24,63 @@ const DIST = {
 }
 
 // Visuelle Größe + Farbe der Himmelskörper.
+// Emissive ist klein → DirectionalLight von der Sonne erzeugt echte Phasen
+// (Mond als sichelförmig wenn nicht voll, Venus-Phasen etc.).
 const BODY_STYLE = {
-  Moon:    { radius: 18, color: 0xfdf5d3, emissive: 0xaa9966, emi: 0.5, halo: 22, haloAlpha: 0.12 },
-  Mercury: { radius: 5,  color: 0xb5a394, emissive: 0x554840, emi: 0.4, halo: 8,  haloAlpha: 0.10 },
-  Venus:   { radius: 9,  color: 0xfff2cc, emissive: 0xb09060, emi: 0.6, halo: 14, haloAlpha: 0.18 },
-  Mars:    { radius: 6,  color: 0xff7a3d, emissive: 0xaa3a10, emi: 0.5, halo: 10, haloAlpha: 0.12 },
-  Jupiter: { radius: 10, color: 0xe8d3a8, emissive: 0x8a7050, emi: 0.4, halo: 14, haloAlpha: 0.12 },
-  Saturn:  { radius: 9,  color: 0xddc18b, emissive: 0x806840, emi: 0.4, halo: 14, haloAlpha: 0.12 },
+  Moon:    { radius: 18, color: 0xeeeae0, emi: 0.04, halo: 22, haloAlpha: 0.08 },
+  Mercury: { radius: 5,  color: 0xb5a394, emi: 0.06, halo: 8,  haloAlpha: 0.06 },
+  Venus:   { radius: 9,  color: 0xfff5d6, emi: 0.10, halo: 14, haloAlpha: 0.20 },
+  Mars:    { radius: 6,  color: 0xd1502b, emi: 0.08, halo: 10, haloAlpha: 0.10 },
+  Jupiter: { radius: 10, color: 0xd9b985, emi: 0.06, halo: 14, haloAlpha: 0.10 },
+  Saturn:  { radius: 9,  color: 0xc9a972, emi: 0.06, halo: 14, haloAlpha: 0.10 },
 }
 
 function makeBodyMesh(name) {
   const s = BODY_STYLE[name]
   const group = new THREE.Group()
   group.add(new THREE.Mesh(
-    new THREE.SphereGeometry(s.radius, 32, 32),
+    new THREE.SphereGeometry(s.radius, 48, 48),
     new THREE.MeshStandardMaterial({
-      color: s.color, emissive: s.emissive, emissiveIntensity: s.emi,
-      roughness: 0.65, metalness: 0.0,
+      color: s.color,
+      emissive: s.color, emissiveIntensity: s.emi,
+      roughness: 0.85, metalness: 0.0,
     }),
   ))
+  // Halo
   group.add(new THREE.Mesh(
     new THREE.SphereGeometry(s.halo, 24, 24),
     new THREE.MeshBasicMaterial({ color: s.color, transparent: true, opacity: s.haloAlpha, depthWrite: false }),
   ))
+  // Saturn-Ringe
+  if (name === 'Saturn') {
+    const ringGeo = new THREE.RingGeometry(13, 21, 96, 1)
+    // RingGeometry hat UVs entlang Theta, nicht radial — wir wollen Querstreifen
+    // für Cassini-Lücke. Mit MeshBasicMaterial und Farbverlauf via vertexColors:
+    const colors = []
+    const pos = ringGeo.attributes.position
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i)
+      const y = pos.getY(i)
+      const r = Math.sqrt(x * x + y * y)
+      // Innen heller, außen leichter Wechsel mit Cassini-Lücke bei ~17
+      const t = (r - 13) / (21 - 13)
+      const inGap = r > 16.6 && r < 17.4
+      const brightness = inGap ? 0.15 : (0.95 - t * 0.25)
+      colors.push(brightness * 0.92, brightness * 0.84, brightness * 0.55)
+    }
+    ringGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
+    const ringMat = new THREE.MeshBasicMaterial({
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.85,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    })
+    const ring = new THREE.Mesh(ringGeo, ringMat)
+    ring.rotation.x = Math.PI / 2 - 0.47 // ~27° Saturn-Axial-Tilt
+    ring.rotation.z = 0.15
+    group.add(ring)
+  }
   return group
 }
 
@@ -149,11 +183,12 @@ export default function LiveEarth({ height = 900 }) {
 
     // ── Sun-Light (für Mond/Planeten-Beleuchtung) ──
     const sunPos = bodyScenePosition('Sun', new Date(), 800).position
-    const sunLight = new THREE.DirectionalLight(0xfff2cc, 1.4)
+    const sunLight = new THREE.DirectionalLight(0xfff5dd, 2.2)
     sunLight.position.copy(sunPos)
     scene.add(sunLight)
 
-    const ambient = new THREE.AmbientLight(0x223355, 0.12)
+    // Sehr wenig Ambient — sonst sind die Schattenseiten der Planeten/Mond nicht zu sehen
+    const ambient = new THREE.AmbientLight(0x1a2640, 0.06)
     scene.add(ambient)
 
     // ── Visible Sun: gelber Glow ──
