@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Key, Check, X, ExternalLink, Eye, EyeOff, Trash2, ShieldCheck, Sparkles } from 'lucide-react'
+import { Key, Check, X, ExternalLink, Eye, EyeOff, Trash2, ShieldCheck, Sparkles, Send, Link2, Unlink } from 'lucide-react'
 import {
   fetchUserKeys, saveUserKey, testKey, deleteUserKey,
+  callTelegramAction,
   SERVICE_CATALOG, CATEGORIES,
 } from '../lib/keyService'
 
@@ -34,10 +35,44 @@ export default function Keys() {
       setResults(s => ({ ...s, [field]: r }))
       setKeys(k => ({ ...k, [field]: val }))
       setEdits(e => { const n = { ...e }; delete n[field]; return n })
+
+      // Magic Moment: Telegram-Token gespeichert → Webhook automatisch registrieren
+      if (field === 'telegram_bot_token') {
+        try {
+          const reg = await callTelegramAction('register')
+          setResults(s => ({ ...s, [field]: {
+            ok: true,
+            message: `Webhook gesetzt für @${reg.bot.username} · ${reg.deep_link}`,
+          }}))
+          // Profil neu laden, damit telegram_webhook_secret/linked_at angezeigt wird
+          const fresh = await fetchUserKeys()
+          if (fresh) setKeys(fresh)
+        } catch (e) {
+          setResults(s => ({ ...s, [field]: { ok: false, message: `Webhook fehlgeschlagen: ${e.message}` }}))
+        }
+      }
     } catch (e) {
       setResults(s => ({ ...s, [field]: { ok: false, message: e.message }}))
     } finally {
       setSaving(s => ({ ...s, [field]: false }))
+    }
+  }
+
+  async function telegramAction(action) {
+    setSaving(s => ({ ...s, telegram_bot_token: true }))
+    try {
+      const r = await callTelegramAction(action)
+      let msg = ''
+      if (action === 'register') msg = `Webhook gesetzt für @${r.bot.username}`
+      else if (action === 'test') msg = '✓ Test-Nachricht verschickt'
+      else if (action === 'unregister') msg = 'Bot getrennt'
+      setResults(s => ({ ...s, telegram_bot_token: { ok: true, message: msg }}))
+      const fresh = await fetchUserKeys()
+      if (fresh) setKeys(fresh)
+    } catch (e) {
+      setResults(s => ({ ...s, telegram_bot_token: { ok: false, message: e.message }}))
+    } finally {
+      setSaving(s => ({ ...s, telegram_bot_token: false }))
     }
   }
 
@@ -154,6 +189,17 @@ export default function Keys() {
                   onToggleReveal={() => setReveal(r => ({ ...r, [svc.field]: !r[svc.field] }))}
                 />
               ))}
+              {cat.id === 'bot' && keys.telegram_bot_token && (
+                <TelegramStatus
+                  keys={keys}
+                  saving={!!saving.telegram_bot_token}
+                  onRegister={() => telegramAction('register')}
+                  onTest={() => telegramAction('test')}
+                  onUnregister={() => {
+                    if (confirm('Bot wirklich trennen? Der Webhook wird gelöscht.')) telegramAction('unregister')
+                  }}
+                />
+              )}
             </div>
           </section>
         )
@@ -212,6 +258,83 @@ function FilterButton({ active, onClick, icon, children }) {
     >
       <span>{icon}</span> {children}
     </button>
+  )
+}
+
+function TelegramStatus({ keys, saving, onRegister, onTest, onUnregister }) {
+  const linkedAt = keys.telegram_linked_at ? new Date(keys.telegram_linked_at) : null
+  const hasWebhook = !!keys.telegram_webhook_secret
+  const hasChat = !!keys.telegram_chat_id
+
+  return (
+    <div className="rounded-2xl border border-sky-500/30 bg-gradient-to-br from-sky-500/10 to-blue-500/5 p-4 sm:p-5">
+      <div className="flex items-center gap-3 mb-3">
+        <Send className="w-5 h-5 text-sky-400" />
+        <h3 className="font-display text-white font-bold text-sm sm:text-base m-0">Telegram-Verbindung</h3>
+        {hasWebhook && (
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 ml-auto">
+            Webhook aktiv
+          </span>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3 text-xs">
+        <StatusPill ok={true} label="Token" detail="gespeichert" />
+        <StatusPill ok={hasWebhook} label="Webhook" detail={hasWebhook ? 'gesetzt' : 'nicht gesetzt'} />
+        <StatusPill ok={hasChat} label="Chat" detail={hasChat ? 'verbunden' : 'noch nicht /start'} />
+      </div>
+
+      {linkedAt && (
+        <div className="text-[11px] text-gray-500 mb-3">
+          Letzte Verbindung: {linkedAt.toLocaleString('de-DE')}
+        </div>
+      )}
+
+      {!hasChat && (
+        <div className="text-xs text-amber-300 bg-amber-500/5 border border-amber-500/20 rounded-lg p-3 mb-3">
+          <strong>Letzter Schritt:</strong> Öffne deinen Bot in Telegram (Suche nach dem Usernamen, den der BotFather dir gegeben hat) und sende <code className="bg-black/30 px-1 py-0.5 rounded">/start</code>. Erst dann kennt er deine Chat-ID und kann dir antworten.
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-2">
+        <button
+          onClick={onRegister}
+          disabled={saving}
+          className="px-3 py-2 bg-sky-500/20 hover:bg-sky-500/30 text-sky-200 text-xs rounded-lg flex items-center gap-1.5 disabled:opacity-50 transition border border-sky-500/30"
+        >
+          <Link2 className="w-3.5 h-3.5" /> Webhook erneuern
+        </button>
+        <button
+          onClick={onTest}
+          disabled={saving || !hasChat}
+          className="px-3 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 text-xs rounded-lg flex items-center gap-1.5 disabled:opacity-50 transition border border-emerald-500/30"
+          title={hasChat ? 'Test-Nachricht senden' : 'Erst /start in Telegram senden'}
+        >
+          <Send className="w-3.5 h-3.5" /> Test-Nachricht
+        </button>
+        <button
+          onClick={onUnregister}
+          disabled={saving}
+          className="px-3 py-2 bg-white/5 hover:bg-red-500/20 text-gray-300 hover:text-red-300 text-xs rounded-lg flex items-center gap-1.5 disabled:opacity-50 transition border border-white/10 ml-auto"
+        >
+          <Unlink className="w-3.5 h-3.5" /> Trennen
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function StatusPill({ ok, label, detail }) {
+  return (
+    <div className={`px-3 py-2 rounded-lg border flex items-center gap-2 ${
+      ok ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-white/5 border-white/10'
+    }`}>
+      <div className={`w-2 h-2 rounded-full ${ok ? 'bg-emerald-400' : 'bg-gray-600'}`} />
+      <div className="min-w-0">
+        <div className={`text-[11px] font-medium ${ok ? 'text-emerald-300' : 'text-gray-400'}`}>{label}</div>
+        <div className="text-[10px] text-gray-500 truncate">{detail}</div>
+      </div>
+    </div>
   )
 }
 

@@ -220,10 +220,29 @@ export async function fetchUserKeys() {
   if (!user) return null
   const { data } = await supabase
     .from('profiles')
-    .select(FETCH_COLUMNS)
+    .select(`${FETCH_COLUMNS}, telegram_webhook_secret, telegram_chat_id, telegram_linked_at`)
     .eq('id', user.id)
     .single()
   return data ?? {}
+}
+
+// ─── Telegram-Webhook-Aktionen über Edge Function ───
+// action ∈ { 'register', 'test', 'unregister' }
+export async function callTelegramAction(action) {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) throw new Error('Nicht angemeldet')
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+  const r = await fetch(`${supabaseUrl}/functions/v1/register-telegram`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify({ action }),
+  })
+  const body = await r.json().catch(() => ({}))
+  if (!r.ok) throw new Error(body?.error || `HTTP ${r.status}`)
+  return body
 }
 
 export async function saveUserKey(field, value) {
