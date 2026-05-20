@@ -37,3 +37,39 @@ export async function setRagSources(sources) {
   if (!user) throw new Error('Nicht angemeldet')
   await supabase.from('profiles').update({ rag_sources: sources }).eq('id', user.id)
 }
+
+// ─── Briefing-Subscription ───
+export async function fetchBriefing() {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+  const { data } = await supabase
+    .from('briefing_subscriptions')
+    .select('*')
+    .eq('user_id', user.id)
+    .maybeSingle()
+  return data
+}
+
+export async function saveBriefing(sub) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Nicht angemeldet')
+  await supabase.from('briefing_subscriptions').upsert({
+    user_id: user.id,
+    hour: sub.hour ?? 8,
+    minute: sub.minute ?? 0,
+    timezone: sub.timezone ?? 'Europe/Berlin',
+    city: sub.city ?? null,
+    include_weather: sub.include_weather ?? true,
+    include_reminders: sub.include_reminders ?? true,
+    include_mood: sub.include_mood ?? true,
+    include_habits: sub.include_habits ?? true,
+    active: sub.active ?? true,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'user_id' })
+}
+
+export async function deleteBriefing() {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Nicht angemeldet')
+  await supabase.from('briefing_subscriptions').delete().eq('user_id', user.id)
+}

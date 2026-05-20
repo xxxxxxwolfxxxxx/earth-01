@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Database, Cloud, Unlink, LogIn, CheckCircle2 } from 'lucide-react'
-import { fetchCloudStatus, callOauthCloud, setRagSources } from '../lib/cloudService'
+import { Database, Cloud, Unlink, LogIn, CheckCircle2, Sunrise } from 'lucide-react'
+import { fetchCloudStatus, callOauthCloud, setRagSources, fetchBriefing, saveBriefing, deleteBriefing } from '../lib/cloudService'
 import { useAuth } from '../contexts/AuthContext'
 
 const SOURCE_LABELS = {
@@ -155,6 +155,8 @@ export default function Data() {
         </section>
       )}
 
+      <BriefingSection />
+
       {connected && (
         <section className="p-5 rounded-2xl border border-red-500/20 bg-red-500/5">
           <h2 className="font-display text-white text-lg font-bold mb-2">Cloud trennen</h2>
@@ -168,5 +170,114 @@ export default function Data() {
         </section>
       )}
     </div>
+  )
+}
+
+function BriefingSection() {
+  const [sub, setSub] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState('')
+
+  useEffect(() => {
+    fetchBriefing().then(s => {
+      setSub(s ?? {
+        hour: 8, minute: 0, timezone: 'Europe/Berlin', city: '',
+        include_weather: true, include_reminders: true,
+        include_mood: true, include_habits: true, active: true,
+      })
+      setLoading(false)
+    })
+  }, [])
+
+  async function save() {
+    setSaving(true); setMsg('')
+    try {
+      await saveBriefing(sub)
+      setMsg('Briefing gespeichert ✓')
+    } catch (e) { setMsg(`Fehler: ${e.message}`) }
+    setSaving(false)
+  }
+
+  async function remove() {
+    if (!confirm('Briefing wirklich deaktivieren?')) return
+    await deleteBriefing()
+    setSub({ hour: 8, minute: 0, timezone: 'Europe/Berlin', city: '', include_weather: true, include_reminders: true, include_mood: true, include_habits: true, active: false })
+    setMsg('Briefing deaktiviert')
+  }
+
+  if (loading) return null
+
+  const active = sub.active && sub.user_id
+  const flagBtn = (key, label) => (
+    <button onClick={() => setSub(s => ({ ...s, [key]: !s[key] }))}
+      className={`px-3 py-1.5 rounded-lg border text-xs transition ${sub[key] ? 'bg-amber-500/20 border-amber-500/40 text-amber-100' : 'bg-white/5 border-white/10 text-gray-400'}`}>
+      {label}
+    </button>
+  )
+
+  return (
+    <section className="mb-8 p-5 rounded-2xl border border-amber-500/20 bg-amber-500/5">
+      <div className="flex items-center justify-between mb-3 gap-3">
+        <h2 className="font-display text-white text-lg font-bold flex items-center gap-2">
+          <Sunrise className="w-5 h-5 text-amber-400" /> Tägliches Briefing
+        </h2>
+        {active && <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">Aktiv</span>}
+      </div>
+
+      <p className="text-gray-400 text-sm mb-4">
+        Dein Bot schickt dir jeden Morgen eine Zusammenfassung — Wetter, Erinnerungen, Mood, Habit-Streaks.
+      </p>
+
+      {msg && <div className="mb-3 text-xs text-blue-200">{msg}</div>}
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3">
+        <div>
+          <label className="text-[10px] uppercase tracking-wider text-gray-400">Stunde</label>
+          <input type="number" min="0" max="23" value={sub.hour}
+            onChange={(e) => setSub(s => ({ ...s, hour: parseInt(e.target.value) || 0 }))}
+            className="w-full mt-1 bg-cosmos-800 border border-white/10 rounded px-2 py-1 text-white text-sm" />
+        </div>
+        <div>
+          <label className="text-[10px] uppercase tracking-wider text-gray-400">Minute</label>
+          <input type="number" min="0" max="59" step="5" value={sub.minute}
+            onChange={(e) => setSub(s => ({ ...s, minute: parseInt(e.target.value) || 0 }))}
+            className="w-full mt-1 bg-cosmos-800 border border-white/10 rounded px-2 py-1 text-white text-sm" />
+        </div>
+        <div className="col-span-2 sm:col-span-1">
+          <label className="text-[10px] uppercase tracking-wider text-gray-400">Zeitzone</label>
+          <input type="text" value={sub.timezone}
+            onChange={(e) => setSub(s => ({ ...s, timezone: e.target.value }))}
+            className="w-full mt-1 bg-cosmos-800 border border-white/10 rounded px-2 py-1 text-white text-sm" placeholder="Europe/Berlin" />
+        </div>
+      </div>
+
+      <div className="mb-3">
+        <label className="text-[10px] uppercase tracking-wider text-gray-400">Stadt fürs Wetter</label>
+        <input type="text" value={sub.city ?? ''}
+          onChange={(e) => setSub(s => ({ ...s, city: e.target.value }))}
+          className="w-full mt-1 bg-cosmos-800 border border-white/10 rounded px-2 py-1 text-white text-sm" placeholder="Hamburg" />
+      </div>
+
+      <div className="flex flex-wrap gap-2 mb-4">
+        {flagBtn('include_weather', '🌤 Wetter')}
+        {flagBtn('include_reminders', '📅 Erinnerungen')}
+        {flagBtn('include_mood', '😊 Mood-Trend')}
+        {flagBtn('include_habits', '💪 Habit-Streaks')}
+      </div>
+
+      <div className="flex gap-2">
+        <button onClick={save} disabled={saving}
+          className="px-4 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-100 rounded-lg border border-amber-500/30 disabled:opacity-50 text-sm">
+          {saving ? 'Speichere…' : active ? 'Speichern' : 'Briefing aktivieren'}
+        </button>
+        {active && (
+          <button onClick={remove}
+            className="px-4 py-2 bg-white/5 hover:bg-red-500/10 text-gray-300 hover:text-red-300 rounded-lg border border-white/10 text-sm">
+            Deaktivieren
+          </button>
+        )}
+      </div>
+    </section>
   )
 }
