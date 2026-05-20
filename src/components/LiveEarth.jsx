@@ -168,7 +168,8 @@ export default function LiveEarth({ height = 900 }) {
           const a = payload.new
           if (a.lat == null || a.lon == null) return
           const id = `ring-${a.id}-${Date.now()}`
-          setRings(prev => [...prev, { id, lat: Number(a.lat), lng: Number(a.lon) }])
+          const isMammoth = String(a.skill_id ?? '').startsWith('mammoth_')
+          setRings(prev => [...prev, { id, lat: Number(a.lat), lng: Number(a.lon), mammoth: isMammoth }])
           setTimeout(() => setRings(prev => prev.filter(r => r.id !== id)), RING_LIFETIME_MS)
         })
       .subscribe()
@@ -284,7 +285,10 @@ export default function LiveEarth({ height = 900 }) {
         ringsData={rings}
         ringLat="lat"
         ringLng="lng"
-        ringColor={() => (t) => `rgba(255, 220, 100, ${1 - t})`}
+        ringColor={(d) => d.mammoth
+          ? (t) => `rgba(186, 130, 255, ${1 - t})`
+          : (t) => `rgba(255, 220, 100, ${1 - t})`
+        }
         ringMaxRadius={5}
         ringPropagationSpeed={3}
         ringRepeatPeriod={1000}

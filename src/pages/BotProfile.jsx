@@ -280,6 +280,7 @@ function pathLabel(path) {
     automation: 'Automation',
     cloud: 'Eigene Cloud',
     spielerei: 'Werkzeuge',
+    gemeinschaft: 'Gemeinschaft',
   }
   return m[path] ?? path
 }

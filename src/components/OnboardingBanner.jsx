@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Key, Send, Network, ArrowRight, X, CheckCircle2, Sparkles } from 'lucide-react'
+import { Key, Send, Network, ArrowRight, X, CheckCircle2, Sparkles, Briefcase } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 
@@ -10,6 +10,7 @@ function deriveStep(profile, unlockedCount) {
   if (!profile.llm_api_key) return 'llm'
   if (!profile.telegram_bot_token || !profile.telegram_webhook_secret) return 'telegram'
   if (unlockedCount === 0) return 'first_skill'
+  if (!profile.bot_at_work && (profile.jobs_done_total ?? 0) === 0) return 'teamwork'
   return 'done'
 }
 
@@ -41,6 +42,15 @@ const STEP_META = {
     color: 'from-purple-500/20 to-fuchsia-500/20 border-purple-500/30',
     accent: 'text-purple-300',
   },
+  teamwork: {
+    icon: Briefcase,
+    title: 'Schritt 4 — Schick deinen Bot zur Arbeit',
+    sub: 'Pro Job 0.9 Credits verdienen, 50 sammeln und eine eigene Website kollektiv bauen lassen. „/arbeiten" an deinen Bot.',
+    to: '/bot',
+    cta: 'Zum Bot-Profil',
+    color: 'from-emerald-500/20 to-cyan-500/20 border-emerald-500/30',
+    accent: 'text-emerald-300',
+  },
   done: {
     icon: Sparkles,
     title: 'Setup abgeschlossen — dein Bot ist startklar',
@@ -67,7 +77,7 @@ export default function OnboardingBanner() {
     if (!user) { setLoaded(false); return }
     let cancelled = false
     Promise.all([
-      supabase.from('profiles').select('llm_api_key, telegram_bot_token, telegram_webhook_secret, onboarding_dismissed').eq('id', user.id).single(),
+      supabase.from('profiles').select('llm_api_key, telegram_bot_token, telegram_webhook_secret, onboarding_dismissed, bot_at_work, jobs_done_total').eq('id', user.id).single(),
       supabase.from('user_skills').select('skill_id', { count: 'exact', head: true }).eq('user_id', user.id),
     ]).then(([p, u]) => {
       if (cancelled) return
@@ -95,7 +105,7 @@ export default function OnboardingBanner() {
   const Icon = meta.icon
 
   // Stepper-Punkte
-  const steps = ['llm', 'telegram', 'first_skill']
+  const steps = ['llm', 'telegram', 'first_skill', 'teamwork']
   const currentIdx = steps.indexOf(step)
   const allDone = step === 'done'
 

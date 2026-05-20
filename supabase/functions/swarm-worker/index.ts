@@ -10,6 +10,7 @@ import { JOBS, statusAfterJob } from "../_shared/swarmJobs.ts";
 import { MAMMOTH_JOBS } from "../_shared/mammothWebsite.ts";
 import { scoreContent } from "../_shared/qualityScore.ts";
 import { generateImage } from "../_shared/imageGen.ts";
+import JSZip from "https://esm.sh/jszip@3.10.1";
 
 const USER_SHARE = 0.9;
 const POOL_SHARE = 0.1;
@@ -241,9 +242,7 @@ async function applyJobResult(supabase: any, article: any, jobType: string, resu
   });
 }
 
-// ── Mammoth-Package: HTML+CSS+Bilder zu Mini-ZIP-artiger Resource zusammenführen ──
-// MVP: speichere index.html + style.css + meta als JSON-Blob in Storage
-// (echtes ZIP wäre die nächste Stufe; für MVP packt der Browser die Dateien selbst)
+// ── Mammoth-Package: echtes ZIP mit allen Dateien bauen ──
 async function packageWebsite(supabase: any, task: any, ctx: any): Promise<any> {
   const html = ctx.results.mammoth_revise?.content ? extractJsonField(ctx.results.mammoth_revise.content, 'html') || ctx.results.mammoth_html_assemble?.content
               : ctx.results.mammoth_html_assemble?.content;
@@ -252,33 +251,41 @@ async function packageWebsite(supabase: any, task: any, ctx: any): Promise<any> 
   const heroImg = ctx.results.mammoth_image_hero?.image_url;
   const secondaryImg = ctx.results.mammoth_image_secondary?.image_url;
 
-  if (!html || !css) {
-    return { error: 'HTML oder CSS fehlt im Mammoth-Kontext' };
+  if (!html || !css) return { error: 'HTML oder CSS fehlt im Mammoth-Kontext' };
+
+  const zip = new JSZip();
+  zip.file('index.html', html);
+  zip.file('style.css', css);
+  zip.file('README.md', `# ${task.title}\n\nGeneriert von Earth 0.1 — Mammutaufgabe.\nÖffne index.html im Browser oder lade den Ordner auf Netlify/Vercel.\n`);
+
+  if (heroImg) {
+    const bytes = dataUrlToBytes(heroImg);
+    if (bytes) zip.file('hero.png', bytes);
+  }
+  if (secondaryImg) {
+    const bytes = dataUrlToBytes(secondaryImg);
+    if (bytes) zip.file('image-2.png', bytes);
   }
 
-  // Storage-Upload: ein Manifest-JSON mit allen Bestandteilen.
-  // Der User kann sich das im /bot-UI als ZIP-Download zusammenbauen lassen (Browser-zip).
-  const manifest = {
-    task_id: task.id,
-    title: task.title,
-    created_at: new Date().toISOString(),
-    files: {
-      'index.html': html,
-      'style.css': css,
-      'hero.png': heroImg ?? null,
-      'image-2.png': secondaryImg ?? null,
-      'README.md': `# ${task.title}\n\nGeneriert von Earth 0.1 — Mammutaufgabe.\nÖffne index.html im Browser.\n`,
-    },
-  };
-
-  const path = `${task.user_id}/${task.id}/manifest.json`;
-  const blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
-  const { error: upErr } = await supabase.storage.from('mammoth-results').upload(path, blob, {
-    upsert: true, contentType: 'application/json',
+  const zipBlob = await zip.generateAsync({ type: 'blob' });
+  const path = `${task.user_id}/${task.id}/website.zip`;
+  const { error: upErr } = await supabase.storage.from('mammoth-results').upload(path, zipBlob, {
+    upsert: true, contentType: 'application/zip',
   });
   if (upErr) return { error: `Upload: ${upErr.message}` };
   const { data: pub } = supabase.storage.from('mammoth-results').getPublicUrl(path);
-  return { result_url: pub.publicUrl, manifest_path: path };
+  return { result_url: pub.publicUrl, zip_path: path, size_bytes: zipBlob.size };
+}
+
+function dataUrlToBytes(dataUrl: string): Uint8Array | null {
+  const m = /^data:[^;]+;base64,(.+)$/.exec(dataUrl);
+  if (!m) return null;
+  try {
+    const binary = atob(m[1]);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  } catch { return null; }
 }
 
 function extractJsonField(content: string, field: string): string | null {

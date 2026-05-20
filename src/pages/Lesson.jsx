@@ -22,6 +22,7 @@ const PATH_META = {
   automation: { color: '#4ade80', label: 'Automation' },
   cloud:      { color: '#06b6d4', label: 'Eigene Cloud' },
   spielerei:  { color: '#fbbf24', label: 'Werkzeuge' },
+  gemeinschaft: { color: '#10b981', label: 'Gemeinschaft' },
 }
 
 const SKILL_TYPE_LABEL = {

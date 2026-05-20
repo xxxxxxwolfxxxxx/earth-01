@@ -13,6 +13,7 @@ const PATH_META = {
   automation: { color: '#4ade80', label: 'Automation',          desc: 'Cron-Jobs, Reminder' },
   cloud:      { color: '#06b6d4', label: 'Eigene Cloud',        desc: 'Google Drive, GitHub' },
   spielerei:  { color: '#fbbf24', label: 'Werkzeuge',           desc: 'QR, Würfel, Mathe, Zitate' },
+  gemeinschaft: { color: '#10b981', label: 'Gemeinschaft',      desc: 'Bot arbeiten · Credits · Mammutaufgaben' },
 }
 
 // Layout-Konstanten
@@ -48,7 +49,7 @@ export default function TechTree() {
 
   const { hubSkills, lanes, layoutHeight, layoutWidth } = useMemo(() => {
     const hubSk = skills.filter(s => s.path === 'hub')
-    const pathOrder = ['daten', 'sicherheit', 'tracking', 'llm', 'automation', 'cloud', 'spielerei']
+    const pathOrder = ['daten', 'sicherheit', 'tracking', 'llm', 'automation', 'cloud', 'spielerei', 'gemeinschaft']
     const presentPaths = pathOrder.filter(p => skills.some(s => s.path === p))
 
     const lanes = presentPaths.map((path, laneIdx) => {
