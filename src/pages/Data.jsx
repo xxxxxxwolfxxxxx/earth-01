@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Database, Cloud, Unlink, LogIn, CheckCircle2, Sunrise } from 'lucide-react'
-import { fetchCloudStatus, callOauthCloud, setRagSources, fetchBriefing, saveBriefing, deleteBriefing } from '../lib/cloudService'
+import { Database, Cloud, Unlink, LogIn, CheckCircle2, Sunrise, Drama } from 'lucide-react'
+import { fetchCloudStatus, callOauthCloud, setRagSources, fetchBriefing, saveBriefing, deleteBriefing, fetchPersona, savePersona } from '../lib/cloudService'
 import { useAuth } from '../contexts/AuthContext'
 
 const SOURCE_LABELS = {
@@ -155,6 +155,7 @@ export default function Data() {
         </section>
       )}
 
+      <PersonaSection />
       <BriefingSection />
 
       {connected && (
@@ -170,6 +171,99 @@ export default function Data() {
         </section>
       )}
     </div>
+  )
+}
+
+function PersonaSection() {
+  const [p, setP] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState('')
+
+  useEffect(() => {
+    fetchPersona().then(d => {
+      setP(d ?? { bot_name: '', bot_role: '', bot_tone: '', bot_extra: '' })
+      setLoading(false)
+    })
+  }, [])
+
+  if (loading) return null
+
+  const has = p.bot_name || p.bot_role || p.bot_tone || p.bot_extra
+
+  const previewLines = []
+  if (p.bot_name) previewLines.push(`Du heißt ${p.bot_name}.`)
+  if (p.bot_role) previewLines.push(`Du bist ${p.bot_role}.`)
+  if (p.bot_tone) previewLines.push(`Antworte ${p.bot_tone}.`)
+  if (p.bot_extra) previewLines.push(p.bot_extra)
+  previewLines.push('Beantworte die Frage anhand der mitgelieferten Notizen — präzise, auf Deutsch.')
+
+  async function save() {
+    setSaving(true); setMsg('')
+    try { await savePersona(p); setMsg('Persona gespeichert ✓') }
+    catch (e) { setMsg(`Fehler: ${e.message}`) }
+    setSaving(false)
+  }
+
+  return (
+    <section className="mb-8 p-5 rounded-2xl border border-fuchsia-500/20 bg-fuchsia-500/5">
+      <div className="flex items-center justify-between mb-3 gap-3">
+        <h2 className="font-display text-white text-lg font-bold flex items-center gap-2">
+          <Drama className="w-5 h-5 text-fuchsia-400" /> Bot-Persona
+        </h2>
+        {has && <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">Aktiv</span>}
+      </div>
+
+      <p className="text-gray-400 text-sm mb-4">
+        Wer ist dein Bot? Wird automatisch in alle LLM-Antworten injiziert (RAG, freier Chat).
+      </p>
+
+      {msg && <div className="mb-3 text-xs text-blue-200">{msg}</div>}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+        <div>
+          <label className="text-[10px] uppercase tracking-wider text-gray-400">Name</label>
+          <input type="text" value={p.bot_name ?? ''}
+            onChange={(e) => setP(s => ({ ...s, bot_name: e.target.value }))}
+            placeholder="z.B. Hermes, Luna, Karl"
+            className="w-full mt-1 bg-cosmos-800 border border-white/10 rounded px-3 py-2 text-white text-sm" />
+        </div>
+        <div>
+          <label className="text-[10px] uppercase tracking-wider text-gray-400">Rolle</label>
+          <input type="text" value={p.bot_role ?? ''}
+            onChange={(e) => setP(s => ({ ...s, bot_role: e.target.value }))}
+            placeholder="z.B. mein persönlicher Assistent"
+            className="w-full mt-1 bg-cosmos-800 border border-white/10 rounded px-3 py-2 text-white text-sm" />
+        </div>
+      </div>
+      <div className="mb-3">
+        <label className="text-[10px] uppercase tracking-wider text-gray-400">Tonalität</label>
+        <input type="text" value={p.bot_tone ?? ''}
+          onChange={(e) => setP(s => ({ ...s, bot_tone: e.target.value }))}
+          placeholder="z.B. freundlich und prägnant, immer mit einem Augenzwinkern"
+          className="w-full mt-1 bg-cosmos-800 border border-white/10 rounded px-3 py-2 text-white text-sm" />
+      </div>
+      <div className="mb-4">
+        <label className="text-[10px] uppercase tracking-wider text-gray-400">Extra-Anweisungen (optional)</label>
+        <textarea value={p.bot_extra ?? ''}
+          onChange={(e) => setP(s => ({ ...s, bot_extra: e.target.value }))}
+          placeholder="z.B. Schreibe niemals länger als 3 Sätze. Begrüße mich morgens immer namentlich."
+          rows={2}
+          className="w-full mt-1 bg-cosmos-800 border border-white/10 rounded px-3 py-2 text-white text-sm resize-none" />
+      </div>
+
+      <details className="mb-4">
+        <summary className="text-xs text-gray-400 cursor-pointer hover:text-white">System-Prompt-Vorschau</summary>
+        <div className="mt-2 text-[11px] text-gray-300 bg-black/30 rounded p-3 font-mono leading-relaxed whitespace-pre-wrap">
+          {previewLines.join(' ')}
+        </div>
+      </details>
+
+      <button onClick={save} disabled={saving}
+        className="px-4 py-2 bg-fuchsia-500/20 hover:bg-fuchsia-500/30 text-fuchsia-100 rounded-lg border border-fuchsia-500/30 disabled:opacity-50 text-sm">
+        {saving ? 'Speichere…' : 'Speichern'}
+      </button>
+    </section>
   )
 }
 

@@ -73,3 +73,26 @@ export async function deleteBriefing() {
   if (!user) throw new Error('Nicht angemeldet')
   await supabase.from('briefing_subscriptions').delete().eq('user_id', user.id)
 }
+
+// ─── Bot-Persona ───
+export async function fetchPersona() {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+  const { data } = await supabase
+    .from('profiles')
+    .select('bot_name, bot_role, bot_tone, bot_extra')
+    .eq('id', user.id)
+    .single()
+  return data
+}
+
+export async function savePersona(p) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Nicht angemeldet')
+  await supabase.from('profiles').update({
+    bot_name:  p.bot_name?.trim() || null,
+    bot_role:  p.bot_role?.trim() || null,
+    bot_tone:  p.bot_tone?.trim() || null,
+    bot_extra: p.bot_extra?.trim() || null,
+  }).eq('id', user.id)
+}

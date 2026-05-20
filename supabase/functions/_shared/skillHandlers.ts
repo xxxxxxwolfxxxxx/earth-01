@@ -262,7 +262,20 @@ export async function buildCloudConfig(supabase: any, userId: string, profile: a
   throw new Error("Keine Cloud konfiguriert");
 }
 
+export function buildSystemPrompt(profile: any): string {
+  const lines: string[] = [];
+  if (profile.bot_name)  lines.push(`Du heißt ${profile.bot_name}.`);
+  if (profile.bot_role)  lines.push(`Du bist ${profile.bot_role}.`);
+  if (profile.bot_tone)  lines.push(`Antworte ${profile.bot_tone}.`);
+  if (profile.bot_extra) lines.push(profile.bot_extra);
+  lines.push(
+    "Beantworte die Frage anhand der mitgelieferten Notizen des Users — präzise, auf Deutsch, nur basierend auf den Notizen. Wenn nichts Passendes dabei ist, sag das ehrlich."
+  );
+  return lines.join(" ");
+}
+
 export async function llmAnswer(profile: any, query: string, context: string): Promise<string> {
+  const systemPrompt = buildSystemPrompt(profile);
   const r = await fetch(`${profile.llm_base_url}/chat/completions`, {
     method: "POST",
     headers: {
@@ -272,10 +285,7 @@ export async function llmAnswer(profile: any, query: string, context: string): P
     body: JSON.stringify({
       model: profile.llm_model,
       messages: [
-        {
-          role: "system",
-          content: "Du beantwortest Fragen anhand der mitgelieferten Notizen des Users. Antworte präzise auf Deutsch, nur basierend auf den Notizen. Wenn nichts Passendes dabei ist, sag das ehrlich.",
-        },
+        { role: "system", content: systemPrompt },
         { role: "user", content: `Frage: ${query}\n\nMitgelieferte Notizen:\n${context}` },
       ],
       temperature: 0.3,
@@ -294,7 +304,7 @@ export async function skillAskMemory(ctx: SkillContext): Promise<SkillResult> {
 
   const { data: profile } = await ctx.supabase
     .from("profiles")
-    .select("huggingface_key, cloud_provider, gdrive_refresh_token, gdrive_folder_id, github_gist_id, github_pat, llm_api_key, llm_base_url, llm_model")
+    .select("huggingface_key, cloud_provider, gdrive_refresh_token, gdrive_folder_id, github_gist_id, github_pat, llm_api_key, llm_base_url, llm_model, bot_name, bot_role, bot_tone, bot_extra")
     .eq("id", ctx.user_id)
     .single();
   if (!profile?.huggingface_key) {

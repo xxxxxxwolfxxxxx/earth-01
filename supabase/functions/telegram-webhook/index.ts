@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
   // Webhook-Secret prüfen
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, telegram_bot_token, telegram_chat_id, whisper_key, llm_api_key, llm_base_url, llm_model, huggingface_key, cloud_provider, rag_sources, gdrive_refresh_token, gdrive_folder_id, github_pat, github_gist_id")
+    .select("id, telegram_bot_token, telegram_chat_id, whisper_key, llm_api_key, llm_base_url, llm_model, elevenlabs_key, huggingface_key, cloud_provider, rag_sources, gdrive_refresh_token, gdrive_folder_id, github_pat, github_gist_id, bot_name, bot_role, bot_tone, bot_extra")
     .eq("telegram_webhook_secret", secret)
     .single();
   if (!profile) {
