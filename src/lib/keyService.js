@@ -220,7 +220,7 @@ export async function fetchUserKeys() {
   if (!user) return null
   const { data } = await supabase
     .from('profiles')
-    .select(`${FETCH_COLUMNS}, telegram_webhook_secret, telegram_chat_id, telegram_linked_at`)
+    .select(`${FETCH_COLUMNS}, telegram_webhook_secret, telegram_chat_id, telegram_linked_at, cloud_provider`)
     .eq('id', user.id)
     .single()
   return data ?? {}

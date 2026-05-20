@@ -3,6 +3,8 @@
 // werden ausschließlich im Frontend gehandhabt.
 
 import { BOT } from "./botMessages.ts";
+import { findRelevant, QueryHit } from "./ragQuery.ts";
+import { CloudConfig } from "./cloudAdapters.ts";
 
 export interface SkillContext {
   supabase: any;
@@ -209,6 +211,105 @@ export async function executeSkill(skill_id: string, ctx: SkillContext): Promise
     case "habits": return skillHabits(ctx);
     case "reminder": return skillReminder(ctx);
     case "pomodoro": return skillPomodoro(ctx);
+    case "ask_memory": return skillAskMemory(ctx);
     default: return { reply: BOT.unknown_command() };
+  }
+}
+
+// ─── RAG: Erinnerung abrufen ──────────────────────────────
+
+// Hilfsfunktion: aktuelle Cloud-Config (Drive braucht frischen Access-Token).
+export async function buildCloudConfig(supabase: any, userId: string, profile: any): Promise<CloudConfig> {
+  if (profile.cloud_provider === "gdrive") {
+    const clientId = Deno.env.get("GOOGLE_OAUTH_CLIENT_ID")!;
+    const clientSecret = Deno.env.get("GOOGLE_OAUTH_CLIENT_SECRET")!;
+    if (!clientId || !clientSecret) throw new Error("Google OAuth Secrets fehlen");
+    const r = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: clientId, client_secret: clientSecret,
+        refresh_token: profile.gdrive_refresh_token,
+        grant_type: "refresh_token",
+      }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(`Drive-Refresh: ${j.error_description || j.error}`);
+    return {
+      provider: "gdrive",
+      gdriveAccessToken: j.access_token,
+      gdriveFolderId: profile.gdrive_folder_id,
+    };
+  }
+  if (profile.cloud_provider === "gist") {
+    return {
+      provider: "gist",
+      githubPat: profile.github_pat,
+      githubGistId: profile.github_gist_id,
+    };
+  }
+  throw new Error("Keine Cloud konfiguriert");
+}
+
+export async function llmAnswer(profile: any, query: string, context: string): Promise<string> {
+  const r = await fetch(`${profile.llm_base_url}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${profile.llm_api_key}`,
+    },
+    body: JSON.stringify({
+      model: profile.llm_model,
+      messages: [
+        {
+          role: "system",
+          content: "Du beantwortest Fragen anhand der mitgelieferten Notizen des Users. Antworte präzise auf Deutsch, nur basierend auf den Notizen. Wenn nichts Passendes dabei ist, sag das ehrlich.",
+        },
+        { role: "user", content: `Frage: ${query}\n\nMitgelieferte Notizen:\n${context}` },
+      ],
+      temperature: 0.3,
+    }),
+  });
+  const j = await r.json();
+  return j?.choices?.[0]?.message?.content ?? "(keine LLM-Antwort)";
+}
+
+export async function skillAskMemory(ctx: SkillContext): Promise<SkillResult> {
+  const m = ctx.message.match(/(?:\/frag|frag)\s+(.+)/i);
+  const query = m?.[1]?.trim();
+  if (!query) {
+    return { reply: "Schreib eine Frage hinterher: /frag wann hab ich Anna getroffen" };
+  }
+
+  const { data: profile } = await ctx.supabase
+    .from("profiles")
+    .select("huggingface_key, cloud_provider, gdrive_refresh_token, gdrive_folder_id, github_gist_id, github_pat, llm_api_key, llm_base_url, llm_model")
+    .eq("id", ctx.user_id)
+    .single();
+  if (!profile?.huggingface_key) {
+    return { reply: "Erst Hugging-Face-Key auf /keys hinterlegen, dann klappt /frag." };
+  }
+  if (!profile?.cloud_provider) {
+    return { reply: "Erst eine Cloud verbinden (auf /data), dann hat /frag was zu durchsuchen." };
+  }
+
+  try {
+    const cloudConfig = await buildCloudConfig(ctx.supabase, ctx.user_id, profile);
+    const hits = await findRelevant({
+      supabase: ctx.supabase,
+      userId: ctx.user_id,
+      query,
+      hfKey: profile.huggingface_key,
+      cloudConfig,
+      topK: 5,
+    });
+    if (hits.length === 0) {
+      return { reply: "Nichts in deinen Notizen dazu gefunden." };
+    }
+    const context = hits.map((h, i) => `(${i + 1}) ${h.text}`).join("\n\n");
+    const reply = await llmAnswer(profile, query, context);
+    return { reply: reply + `\n\n📚 Aus ${hits.length} Notiz(en).` };
+  } catch (e) {
+    return { reply: `🧠 Fehler beim Erinnern: ${e.message}` };
   }
 }

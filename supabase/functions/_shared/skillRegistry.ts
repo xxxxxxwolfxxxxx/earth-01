@@ -22,6 +22,7 @@ export const SKILL_REGISTRY: SkillMeta[] = [
   { id: 'reminder',      path: 'automation', pattern: /(\/erinner|in\s+\d+\s+(min|stunde|h)\s)/i },
   { id: 'pomodoro',      path: 'automation', pattern: /(\/pomodoro|^pomodoro)/i },
   { id: 'joke_quote',    path: 'spielerei',  pattern: /(\/witz|\/joke|^witz|^zitat)/i },
+  { id: 'ask_memory',    path: 'llm',        pattern: /(?:^|\s)(?:\/frag|frag)\s+(.+)/i, requires_keys: ['llm_api_key','huggingface_key'] },
 ];
 
 export function matchSkill(message: string): SkillMeta | null {

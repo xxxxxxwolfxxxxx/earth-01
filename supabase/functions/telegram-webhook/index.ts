@@ -1,8 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { matchSkill } from "../_shared/skillRegistry.ts";
-import { executeSkill } from "../_shared/skillHandlers.ts";
+import { executeSkill, buildCloudConfig, llmAnswer } from "../_shared/skillHandlers.ts";
 import { BOT } from "../_shared/botMessages.ts";
 import { transcribeTelegramVoice } from "../_shared/transcribe.ts";
+import { ingestNote } from "../_shared/memoryIngest.ts";
+import { findRelevant } from "../_shared/ragQuery.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -23,7 +25,7 @@ Deno.serve(async (req) => {
   // Webhook-Secret prüfen
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, telegram_bot_token, telegram_chat_id, whisper_key, llm_api_key")
+    .select("id, telegram_bot_token, telegram_chat_id, whisper_key, llm_api_key, llm_base_url, llm_model, huggingface_key, cloud_provider, rag_sources, gdrive_refresh_token, gdrive_folder_id, github_pat, github_gist_id")
     .eq("telegram_webhook_secret", secret)
     .single();
   if (!profile) {
@@ -73,6 +75,29 @@ Deno.serve(async (req) => {
   // Skill-Match
   const skill = matchSkill(text);
   if (!skill) {
+    // Auto-Recall-Fallback: User hat auto_recall freigeschaltet + Cloud + HF-Key?
+    const { data: hasRecall } = await supabase
+      .from("user_skills").select("skill_id")
+      .eq("user_id", profile.id).eq("skill_id", "auto_recall").maybeSingle();
+    if (hasRecall && profile.cloud_provider && profile.huggingface_key && profile.llm_api_key) {
+      try {
+        const cloudConfig = await buildCloudConfig(supabase, profile.id, profile);
+        const hits = await findRelevant({
+          supabase, userId: profile.id, query: text,
+          hfKey: profile.huggingface_key, cloudConfig, topK: 3,
+        });
+        const top = hits[0];
+        if (top && top.similarity > 0.78) {
+          const context = hits.map((h, i) => `(${i + 1}) ${h.text}`).join("\n\n");
+          const reply = await llmAnswer(profile, text, context);
+          await sendTelegram(profile.telegram_bot_token, msg.chat.id,
+            `${reply}\n\n📚 (Aus deinen Notizen)`);
+          return new Response("ok-autorecall", { headers: CORS });
+        }
+      } catch (e) {
+        console.warn("auto_recall fehlgeschlagen:", (e as Error).message);
+      }
+    }
     await sendTelegram(profile.telegram_bot_token, msg.chat.id, BOT.unknown_command());
     return new Response("ok-no-match", { headers: CORS });
   }
@@ -111,6 +136,26 @@ Deno.serve(async (req) => {
   const ctx = { supabase, user_id: profile.id, message: text };
   const result = await executeSkill(skill.id, ctx);
   await sendTelegram(profile.telegram_bot_token, msg.chat.id, result.reply);
+
+  // RAG-Ingestion: bei notes/mood/habits Schreibvorgängen Notiz in Cloud + Index spiegeln
+  if (["notes", "mood", "habits"].includes(skill.id) && profile.cloud_provider && profile.huggingface_key) {
+    const sourceMap: Record<string, string> = { notes: "note", mood: "mood", habits: "habit" };
+    const sourceType = sourceMap[skill.id];
+    const sources = profile.rag_sources ?? ["note"];
+    if (sources.includes(sourceType)) {
+      try {
+        const cloudConfig = await buildCloudConfig(supabase, profile.id, profile);
+        await ingestNote({
+          supabase, userId: profile.id, text,
+          sourceType: sourceType as any,
+          hfKey: profile.huggingface_key,
+          cloudConfig,
+        });
+      } catch (e) {
+        console.warn(`Ingest failed: ${(e as Error).message}`);
+      }
+    }
+  }
 
   // Usage-Log
   const today = new Date().toISOString().slice(0, 10);
