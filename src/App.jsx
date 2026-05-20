@@ -20,6 +20,7 @@ const Keys       = lazy(() => import('./pages/Keys'))
 const Provider   = lazy(() => import('./pages/Provider'))
 const Data       = lazy(() => import('./pages/Data'))
 const ErdeLernt  = lazy(() => import('./pages/ErdeLernt'))
+const BotProfile = lazy(() => import('./pages/BotProfile'))
 
 function PageFallback() {
   return (
@@ -49,6 +50,7 @@ export default function App() {
             <Route path="/provider" element={<Provider />} />
             <Route path="/login" element={<Login />} />
             <Route path="/data" element={<Data />} />
+            <Route path="/bot" element={<BotProfile />} />
             <Route path="/erde-lernt" element={<ErdeLernt />} />
             <Route path="/erde-lernt/:slug" element={<ErdeLernt />} />
             <Route path="/auth/callback" element={<AuthCallback />} />

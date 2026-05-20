@@ -66,6 +66,49 @@
   100% { transform: translate(-45%, -55%) scale(1.1); }
 }
 
+/* Mini-Earth-Logo im Header: rotierender 3D-anmutender Globus via CSS */
+.mini-earth {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 30% 30%, rgba(255,255,255,0.25) 0%, transparent 40%),
+    conic-gradient(
+      from 0deg,
+      #1e3a5f 0deg,
+      #2a5a8f 30deg,
+      #4a8a4a 60deg,
+      #6b9d6b 90deg,
+      #2a5a8f 130deg,
+      #1e3a5f 180deg,
+      #4a7aac 210deg,
+      #6b9d6b 240deg,
+      #2a5a8f 280deg,
+      #1e3a5f 320deg,
+      #1e3a5f 360deg
+    );
+  box-shadow:
+    inset -4px -4px 8px rgba(0,0,0,0.55),
+    inset 3px 3px 6px rgba(255,255,255,0.18),
+    0 0 12px rgba(80,160,255,0.35);
+  animation: mini-earth-rotate 30s linear infinite;
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.mini-earth::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 28% 28%, rgba(140,210,255,0.3) 0%, transparent 55%);
+  pointer-events: none;
+}
+@keyframes mini-earth-rotate {
+  from { background-position: 0% 50%, 0% 0%; }
+  to   { background-position: 0% 50%, 200% 0%; }
+}
+
 /* Mini-Wiki: anklickbare Glossar-Begriffe in Lesson-Texten */
 .term {
   color: #a5b4fc;

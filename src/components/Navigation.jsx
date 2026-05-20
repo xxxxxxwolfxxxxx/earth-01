@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Menu, X, Globe, BookOpen, LogIn, LogOut, User, Home as HomeIcon, Network, Key, Sparkles, Database, Sprout } from 'lucide-react'
+import { Menu, X, Globe, BookOpen, LogIn, LogOut, User, Home as HomeIcon, Network, Key, Sparkles, Database, Sprout, Bot } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 
 function GithubIcon({ className }) {
@@ -19,6 +19,7 @@ const links = [
   { to: '/provider', label: 'Anbieter', icon: Sparkles },
   { to: '/keys', label: 'Keys', icon: Key },
   { to: '/data', label: 'Daten', icon: Database },
+  { to: '/bot', label: 'Mein Bot', icon: Bot, requiresAuth: true },
 ]
 
 export default function Navigation() {
@@ -31,16 +32,14 @@ export default function Navigation() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <Link to="/" className="flex items-center gap-3 no-underline group">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-emerald-500 flex items-center justify-center shadow-lg shadow-blue-500/20 group-hover:shadow-blue-500/40 transition-shadow">
-              <Globe className="w-5 h-5 text-white" />
-            </div>
+            <div className="mini-earth shadow-lg shadow-blue-500/30 group-hover:shadow-blue-500/50 transition-shadow" />
             <span className="font-display font-bold text-lg text-white tracking-tight">
               Earth <span className="text-nebula-400">0.1</span>
             </span>
           </Link>
 
           <div className="hidden md:flex items-center gap-1">
-            {links.filter(l => !l.auth || user).map(({ to, label, icon: Icon }) => (
+            {links.filter(l => !l.requiresAuth || user).map(({ to, label, icon: Icon }) => (
               <Link
                 key={to}
                 to={to}
@@ -97,7 +96,7 @@ export default function Navigation() {
 
         {open && (
           <div className="md:hidden pb-4 border-t border-white/5 mt-2 pt-4">
-            {links.filter(l => !l.auth || user).map(({ to, label, icon: Icon }) => (
+            {links.filter(l => !l.requiresAuth || user).map(({ to, label, icon: Icon }) => (
               <Link
                 key={to}
                 to={to}
