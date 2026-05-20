@@ -7,6 +7,7 @@ import { findRelevant, QueryHit } from "./ragQuery.ts";
 import { CloudConfig } from "./cloudAdapters.ts";
 import { generateImage } from "./imageGen.ts";
 import { synthesize } from "./tts.ts";
+import { sendMail } from "./mail.ts";
 
 export interface SkillContext {
   supabase: any;
@@ -221,6 +222,7 @@ export async function executeSkill(skill_id: string, ctx: SkillContext): Promise
     case "quota_check": return skillQuotaCheck(ctx);
     case "image_gen": return skillImageGen(ctx);
     case "voice_out": return skillVoiceOut(ctx);
+    case "mail_send": return skillMailSend(ctx);
     default: return { reply: BOT.unknown_command() };
   }
 }
@@ -499,4 +501,41 @@ export async function skillVoiceOut(ctx: SkillContext): Promise<SkillResult> {
     return { reply: `🔊 TTS fehlgeschlagen: ${result.error ?? "Unbekannt"}` };
   }
   return { reply: "", voice: result.blob, voiceCaption: `🔊 „${text}"` };
+}
+
+// ─── Mail-Send: Resend ─────────────────────────────────────
+
+export async function skillMailSend(ctx: SkillContext): Promise<SkillResult> {
+  const m = ctx.message.match(/(?:\/mail|mail an)\s+(.+)/i);
+  const raw = (m?.[1] ?? "").trim();
+  if (!raw) {
+    return { reply: "So geht's: /mail empfänger@x.de | Betreff | Inhalt" };
+  }
+  const parts = raw.split("|").map(s => s.trim());
+  if (parts.length < 3) {
+    return { reply: "Bitte Pipe-getrennt: /mail empfänger@x.de | Betreff | Inhalt" };
+  }
+  const [to, subject, ...bodyParts] = parts;
+  const body = bodyParts.join(" | ");
+
+  const { data: profile } = await ctx.supabase
+    .from("profiles")
+    .select("resend_api_key")
+    .eq("id", ctx.user_id).single();
+  if (!profile?.resend_api_key) {
+    return { reply: "Erst Resend-Key auf /keys hinterlegen (3000 Mails/Monat gratis bei resend.com)." };
+  }
+
+  const result = await sendMail({
+    to, subject, body,
+    resendKey: profile.resend_api_key,
+  });
+  if (!result.ok) {
+    let hint = "";
+    if (result.error?.toLowerCase().includes("domain")) {
+      hint = "\n\n💡 Resend braucht für fremde Empfänger eine verifizierte Domain (resend.com/domains). Ohne Domain kannst du nur an deine eigene Resend-Account-Mail senden.";
+    }
+    return { reply: `📧 Mail fehlgeschlagen: ${result.error}${hint}` };
+  }
+  return { reply: `📧 Mail an ${to} versendet. ID: ${result.messageId?.slice(0, 8) ?? "—"}` };
 }

@@ -26,6 +26,7 @@ export const SKILL_REGISTRY: SkillMeta[] = [
   { id: 'quota_check',   path: 'spielerei',  pattern: /(?:\/quota|\/limits|^quota$|^limits$|wie viel\s+(?:token|quota))/i },
   { id: 'image_gen',     path: 'spielerei',  pattern: /(?:\/bild|\/image|mal mir|bild von|bild:)\s+/i, requires_keys: ['huggingface_key'] },
   { id: 'voice_out',     path: 'spielerei',  pattern: /(?:\/sage|\/voice|sag(?:'s)?|sprich)\s+/i, requires_keys: ['elevenlabs_key'] },
+  { id: 'mail_send',     path: 'automation', pattern: /(?:\/mail|mail an)\s+/i, requires_keys: ['resend_api_key'] },
 ];
 
 export function matchSkill(message: string): SkillMeta | null {
