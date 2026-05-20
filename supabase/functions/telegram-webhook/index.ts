@@ -207,6 +207,22 @@ Deno.serve(async (req) => {
     await supabase.from("skill_usage_log").insert({ user_id: profile.id, skill_id: skill.id, date: today, count: 1 });
   }
 
+  // Live-Earth-Aktivität: wenn der User einen Standort hat, sende einen
+  // Aktivitäts-Pulse an die Landing-Page.
+  const { data: loc } = await supabase
+    .from("profiles")
+    .select("home_lat, home_lon")
+    .eq("id", profile.id)
+    .single();
+  if (loc?.home_lat != null && loc?.home_lon != null) {
+    await supabase.from("agent_activity").insert({
+      user_id: profile.id,
+      lat: loc.home_lat,
+      lon: loc.home_lon,
+      skill_id: skill.id,
+    });
+  }
+
   return new Response("ok", { headers: CORS });
 });
 

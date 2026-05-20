@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { ArrowRight, Network, Key, BookOpen, Sparkles, Zap, Brain, Smartphone, Lock, Send } from 'lucide-react'
-import Earth from '../components/Earth'
+import LiveEarth from '../components/LiveEarth'
 
 const features = [
   {
@@ -39,19 +39,21 @@ export default function Home() {
   return (
     <div>
       {/* Hero */}
-      <section className="min-h-screen flex flex-col items-center justify-end text-center px-4 pb-20 relative">
-        <Earth />
+      <section className="min-h-screen flex flex-col items-center justify-center text-center px-4 pt-20 pb-12 relative">
+        <div className="w-full flex justify-center -mb-8">
+          <LiveEarth height={500} />
+        </div>
         <div className="max-w-3xl relative">
           <h1 className="font-display text-5xl sm:text-7xl font-bold text-white leading-tight tracking-tight">
             Earth <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-emerald-400 bg-clip-text text-transparent">0.1</span>
           </h1>
           <p className="text-xl sm:text-2xl text-gray-300 mt-4 leading-relaxed font-light">
-            Lerne KI — bau dir dabei deinen Agenten.
+            Ein Zuhause für deinen Agenten — und für alle anderen.
           </p>
           <p className="text-gray-400 mt-4 max-w-xl mx-auto leading-relaxed">
-            Ein Lernspiel über KI, Agenten und das Internet. Du klickst dich durch den Tech-Baum,
-            verstehst nebenbei was Token, Cron oder RAG bedeuten — und schaltest dabei echte
-            Werkzeuge frei die dein Telegram-Bot ab sofort für dich nutzt.
+            Jedes Licht auf der Erde ist ein User, dessen Bot hier lebt. Jeder Pulse
+            zeigt einen Bot, der gerade was tut. Du lernst KI, baust dir deinen
+            eigenen Agenten — und siehst, wer noch da ist.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center mt-8">
             <Link

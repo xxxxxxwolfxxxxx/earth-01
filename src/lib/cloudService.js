@@ -66,6 +66,20 @@ export async function saveBriefing(sub) {
     active: sub.active ?? true,
     updated_at: new Date().toISOString(),
   }, { onConflict: 'user_id' })
+
+  // Wenn Stadt gesetzt: Standort fürs Live-Earth ableiten.
+  if (sub.city && sub.city.trim()) {
+    try {
+      const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(sub.city.trim())}&count=1&language=de`)
+      const j = await r.json()
+      const p = j.results?.[0]
+      if (p) {
+        await supabase.from('profiles').update({
+          home_lat: p.latitude, home_lon: p.longitude, home_city: p.name,
+        }).eq('id', user.id)
+      }
+    } catch { /* silent */ }
+  }
 }
 
 export async function deleteBriefing() {

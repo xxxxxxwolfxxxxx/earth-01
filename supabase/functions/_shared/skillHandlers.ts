@@ -34,6 +34,12 @@ export async function skillWeather(ctx: SkillContext): Promise<SkillResult> {
     const gj = await geo.json();
     const place = gj.results?.[0];
     if (!place) return { reply: `Dein Bot konnte '${city}' nicht finden.` };
+    // Standort im Profil hinterlegen — fließt in Live-Earth ein.
+    await ctx.supabase.from("profiles").update({
+      home_lat: place.latitude,
+      home_lon: place.longitude,
+      home_city: place.name,
+    }).eq("id", ctx.user_id);
     const wx = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${place.latitude}&longitude=${place.longitude}&current=temperature_2m,weather_code,wind_speed_10m&timezone=auto`);
     const wxj = await wx.json();
     const c = wxj.current ?? {};
