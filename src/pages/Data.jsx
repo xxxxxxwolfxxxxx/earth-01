@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Database, Cloud, Unlink, LogIn, CheckCircle2, Sunrise, Drama } from 'lucide-react'
-import { fetchCloudStatus, callOauthCloud, setRagSources, fetchBriefing, saveBriefing, deleteBriefing, fetchPersona, savePersona } from '../lib/cloudService'
+import { Database, Cloud, Unlink, LogIn, CheckCircle2, Sunrise, Drama, Upload } from 'lucide-react'
+import { fetchCloudStatus, callOauthCloud, setRagSources, fetchBriefing, saveBriefing, deleteBriefing, fetchPersona, savePersona, uploadFile } from '../lib/cloudService'
 import { useAuth } from '../contexts/AuthContext'
 
 const SOURCE_LABELS = {
@@ -155,6 +155,7 @@ export default function Data() {
         </section>
       )}
 
+      {connected && <FileUploadSection />}
       <PersonaSection />
       <BriefingSection />
 
@@ -171,6 +172,52 @@ export default function Data() {
         </section>
       )}
     </div>
+  )
+}
+
+function FileUploadSection() {
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+
+  async function onFile(e) {
+    const file = e.target.files?.[0]
+    e.target.value = '' // erlaubt erneuten Upload derselben Datei
+    if (!file) return
+    if (file.size > 200_000) { setMsg('Datei zu groß (max 200k Zeichen).'); return }
+    const allowed = /\.(txt|md|markdown|csv|json|log)$/i
+    if (!allowed.test(file.name)) {
+      setMsg('Nur Text-Formate: .txt .md .csv .json .log (PDF kommt später).')
+      return
+    }
+    setBusy(true); setMsg(`Lade „${file.name}" hoch…`)
+    try {
+      await uploadFile(file)
+      setMsg(`„${file.name}" indiziert ✓ — der Bot kann jetzt darüber Fragen beantworten.`)
+    } catch (err) {
+      setMsg(`Fehler: ${err.message}`)
+    }
+    setBusy(false)
+  }
+
+  return (
+    <section className="mb-8 p-5 rounded-2xl border border-cyan-500/20 bg-cyan-500/5">
+      <h2 className="font-display text-white text-lg font-bold mb-3 flex items-center gap-2">
+        <Upload className="w-5 h-5 text-cyan-400" /> Datei zum Erinnern
+      </h2>
+      <p className="text-gray-400 text-sm mb-4">
+        Lad ein Textdokument hoch — der Inhalt wird embedded und in deiner Cloud abgelegt.
+        Danach kannst du per <code>/frag</code> Fragen dazu stellen.
+      </p>
+
+      {msg && <div className="mb-3 text-xs text-cyan-200 bg-cyan-500/10 rounded p-2">{msg}</div>}
+
+      <label className={`block px-4 py-3 rounded-xl border-2 border-dashed text-center cursor-pointer transition ${busy ? 'border-cyan-500/30 bg-cyan-500/10 cursor-wait' : 'border-cyan-500/30 hover:border-cyan-500/60 hover:bg-cyan-500/10'}`}>
+        <input type="file" className="hidden" accept=".txt,.md,.markdown,.csv,.json,.log" onChange={onFile} disabled={busy} />
+        <Upload className="w-6 h-6 text-cyan-400 mx-auto mb-2" />
+        <div className="text-sm text-white">{busy ? 'Wird verarbeitet…' : 'Datei wählen oder hier ablegen'}</div>
+        <div className="text-[10px] text-gray-400 mt-1">.txt · .md · .csv · .json · .log · max 200k Zeichen</div>
+      </label>
+    </section>
   )
 }
 

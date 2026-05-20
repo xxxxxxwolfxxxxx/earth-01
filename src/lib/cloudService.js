@@ -86,6 +86,24 @@ export async function fetchPersona() {
   return data
 }
 
+export async function uploadFile(file) {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) throw new Error('Nicht angemeldet')
+  const text = await file.text()
+  const url = import.meta.env.VITE_SUPABASE_URL
+  const r = await fetch(`${url}/functions/v1/ingest-file`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify({ text, filename: file.name }),
+  })
+  const j = await r.json().catch(() => ({}))
+  if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`)
+  return j
+}
+
 export async function savePersona(p) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Nicht angemeldet')

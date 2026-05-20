@@ -223,6 +223,7 @@ export async function executeSkill(skill_id: string, ctx: SkillContext): Promise
     case "image_gen": return skillImageGen(ctx);
     case "voice_out": return skillVoiceOut(ctx);
     case "mail_send": return skillMailSend(ctx);
+    case "chat": return skillChat(ctx);
     default: return { reply: BOT.unknown_command() };
   }
 }
@@ -548,4 +549,50 @@ export async function skillMailSend(ctx: SkillContext): Promise<SkillResult> {
     return { reply: `📧 Mail fehlgeschlagen: ${result.error}${hint}` };
   }
   return { reply: `📧 Mail an ${to} versendet. ID: ${result.messageId?.slice(0, 8) ?? "—"}` };
+}
+
+// ─── Chat: freier LLM-Chat mit Persona ──────────────────────
+
+export async function skillChat(ctx: SkillContext): Promise<SkillResult> {
+  const m = ctx.message.match(/(?:^|\s)\/chat\s+(.+)/i);
+  const q = (m?.[1] ?? "").trim();
+  if (!q) {
+    return { reply: "Schreib eine Frage hinterher: /chat Erklär mir Embeddings" };
+  }
+  const { data: profile } = await ctx.supabase
+    .from("profiles")
+    .select("llm_api_key, llm_base_url, llm_model, bot_name, bot_role, bot_tone, bot_extra")
+    .eq("id", ctx.user_id).single();
+  if (!profile?.llm_api_key || !profile?.llm_base_url || !profile?.llm_model) {
+    return { reply: "Erst Sprachmodell-Key auf /keys hinterlegen." };
+  }
+
+  // Persona-Prompt nutzen, ohne RAG-Kontext-Klausel
+  const personaLines: string[] = [];
+  if (profile.bot_name)  personaLines.push(`Du heißt ${profile.bot_name}.`);
+  if (profile.bot_role)  personaLines.push(`Du bist ${profile.bot_role}.`);
+  if (profile.bot_tone)  personaLines.push(`Antworte ${profile.bot_tone}.`);
+  if (profile.bot_extra) personaLines.push(profile.bot_extra);
+  if (personaLines.length === 0) personaLines.push("Du bist ein hilfreicher Assistent. Antworte präzise und auf Deutsch.");
+
+  try {
+    const r = await fetch(`${profile.llm_base_url}/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${profile.llm_api_key}` },
+      body: JSON.stringify({
+        model: profile.llm_model,
+        messages: [
+          { role: "system", content: personaLines.join(" ") },
+          { role: "user", content: q },
+        ],
+        temperature: 0.7,
+      }),
+    });
+    const j = await r.json();
+    if (!r.ok) return { reply: `🤖 LLM-Fehler: ${j?.error?.message ?? r.status}` };
+    const reply = j?.choices?.[0]?.message?.content ?? "(keine Antwort)";
+    return { reply };
+  } catch (e) {
+    return { reply: `🤖 Verbindungsfehler: ${(e as Error).message}` };
+  }
 }
