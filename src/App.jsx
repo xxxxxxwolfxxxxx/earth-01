@@ -14,6 +14,7 @@ import Keys from './pages/Keys'
 import Provider from './pages/Provider'
 import Data from './pages/Data'
 import AuthCloudCallback from './pages/AuthCloudCallback'
+import ErdeLernt from './pages/ErdeLernt'
 
 export default function App() {
   const location = useLocation()
@@ -34,6 +35,8 @@ export default function App() {
           <Route path="/provider" element={<Provider />} />
           <Route path="/login" element={<Login />} />
           <Route path="/data" element={<Data />} />
+          <Route path="/erde-lernt" element={<ErdeLernt />} />
+          <Route path="/erde-lernt/:slug" element={<ErdeLernt />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/auth/cloud-callback" element={<AuthCloudCallback />} />
         </Routes>
