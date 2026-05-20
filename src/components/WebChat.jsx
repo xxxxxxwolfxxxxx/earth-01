@@ -3,23 +3,9 @@ import { Send, Bot, User, Loader2 } from 'lucide-react'
 import { fetchAgentMessages, subscribeToMessages, fetchLLMFromProfile } from '../lib/worldService'
 import { supabase } from '../lib/supabase'
 import { useWorld } from '../contexts/WorldContext'
-import { loadLLMSettings, queryLLM } from '../lib/llmAdapters'
-import { buildChatPrompt } from '../lib/agentBrain'
 
-// Versucht zuerst das Supabase-Profil (KeySetupPanel / Phase C),
-// fällt dann auf localStorage zurück (älterer Browser-LLM-Setup).
-async function resolveLLMSettings() {
-  const fromProfile = await fetchLLMFromProfile()
-  if (fromProfile?.apiKey) {
-    return {
-      provider: 'openai-compatible',
-      baseUrl: fromProfile.baseUrl || 'https://integrate.api.nvidia.com/v1',
-      apiKey: fromProfile.apiKey,
-      model: fromProfile.model || 'moonshotai/kimi-k2.5',
-    }
-  }
-  return loadLLMSettings()
-}
+const WEBCHAT_RESPOND_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/webchat-respond`
+const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 export default function WebChat({ agent }) {
   const [messages, setMessages] = useState([])
@@ -31,7 +17,7 @@ export default function WebChat({ agent }) {
   const { worldState } = useWorld()
 
   useEffect(() => {
-    resolveLLMSettings().then((s) => setHasLLM(!!s))
+    fetchLLMFromProfile().then((s) => setHasLLM(!!s?.apiKey))
   }, [])
 
   useEffect(() => {
@@ -76,51 +62,19 @@ export default function WebChat({ agent }) {
       // Set forced_phase to free
       await supabase.from('agents').update({ forced_phase: 'free' }).eq('id', agent.id)
 
-      // Try LLM: profile first, localStorage fallback
-      const settings = await resolveLLMSettings()
-      if (settings) {
-        const { data: longMems } = await supabase
-          .from('agent_memory')
-          .select('content, importance')
-          .eq('agent_id', agent.id)
-          .eq('memory_type', 'long')
-          .order('importance', { ascending: false })
-          .limit(5)
-
-        const { data: userMems } = await supabase
-          .from('agent_memory')
-          .select('content, importance, category')
-          .eq('agent_id', agent.id)
-          .eq('memory_type', 'user')
-          .order('importance', { ascending: false })
-          .limit(10)
-
-        const { data: recent } = await supabase
-          .from('agent_messages')
-          .select('direction, content')
-          .eq('agent_id', agent.id)
-          .order('created_at', { ascending: false })
-          .limit(10)
-
-        const prompt = buildChatPrompt(
-          agent,
-          (recent ?? []).reverse(),
-          longMems ?? [],
-          userMems ?? [],
-          worldState
-        )
-
-        const response = await queryLLM(prompt, settings)
-        const cleanResponse = response.replace(/\[REMEMBER\].*?(?:\[\/REMEMBER\]|$)/s, '').trim()
-
-        await supabase.from('agent_messages').insert({
-          agent_id: agent.id,
-          direction: 'agent',
-          content: cleanResponse,
-          tick,
+      // Edge Function ruft LLM serverseitig (kein CORS), schreibt Antwort als agent_message
+      try {
+        await fetch(WEBCHAT_RESPOND_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${SUPABASE_ANON}`,
+          },
+          body: JSON.stringify({ agent_id: agent.id, user_id: user.id }),
         })
+      } catch (err) {
+        console.warn('webchat-respond fehlgeschlagen — Telegram-Webhook übernimmt:', err.message)
       }
-      // If no browser LLM, the message will be answered by Telegram webhook on next message
     } catch (err) {
       console.error('Chat error:', err)
     }
