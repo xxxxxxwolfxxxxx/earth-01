@@ -416,7 +416,7 @@ function WorkSection() {
           <div className="text-sm text-white font-medium">🌐 Neue Website (kostet 50 Credits)</div>
           <input type="text" value={briefForm.title}
             onChange={e => setBriefForm(s => ({ ...s, title: e.target.value }))}
-            placeholder="Titel der Seite (z.B. „Mein Portfolio")"
+            placeholder='Titel der Seite (z.B. „Mein Portfolio")'
             className="w-full bg-cosmos-800 border border-white/10 rounded px-3 py-2 text-white text-sm" />
           <input type="text" value={briefForm.tagline}
             onChange={e => setBriefForm(s => ({ ...s, tagline: e.target.value }))}
