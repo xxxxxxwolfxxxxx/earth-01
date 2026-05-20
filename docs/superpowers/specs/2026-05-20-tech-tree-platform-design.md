@@ -101,6 +101,7 @@ Keine zusätzliche Infrastruktur, keine neue npm-Dependency wenn vermeidbar.
 | 2 | github_storage | 🐙 | GitHub-Repo als Gedächtnis | config | — | 0 |
 | 2 | image_gen | 🎨 | Bild-Generation | script | api_keys | 0 + Bilder-Quota |
 | 2 | whisper | 🗣️ | Sprache → Text | script | api_keys | 0 + STT-Quota |
+| 2 | quota_view | 📊 | Limit-Sicht (Free-Tier-Status) | script | api_keys | 0 |
 | 3 | briefing | 📰 | Tägliches Briefing | workflow | weather, reminder, llm_chat | 800-1500 |
 | 3 | second_brain | 🧠 | Zweites Gehirn | workflow | rag, notes | 100/Eintrag |
 | 3 | quantized_local | ⚡ | Lokales Mini-Modell | script | api_keys | 0 (Server) |
@@ -155,8 +156,55 @@ Jede Skill-Aktivierung läuft über drei Karten in serieller Reihenfolge.
 
 **Inhaltspflege:** Glossar-Tabelle in DB. Auto-Discovery: jedes `<span class="term">…</span>` im Text wird zur Klick-Quelle, der Text-Inhalt ist der Lookup-Key. Wenn der Begriff in der Glossar-Tabelle fehlt, kein Tooltip (graceful degradation).
 
-**MVP-Glossar** (etwa 25 Begriffe):
-API, REST-API, JSON, Token, Kontext-Fenster, Prompt, Prompt-Engineering, Embedding, RAG, Cron, OAuth, Webhook, Sprachmodell / LLM, Quantisierung, Inferenz, Whisper / Speech-to-Text, Stable Diffusion, Hugging Face, Endpoint, Tier (Free-Tier), Rate-Limit, Service-Account, WebGPU, REST vs WebSocket, JSON-Schema.
+**MVP-Glossar** (etwa 28 Begriffe):
+API, REST-API, JSON, Token, Kontext-Fenster, Prompt, Prompt-Engineering, Embedding, RAG, Cron, OAuth, Webhook, Sprachmodell / LLM, Quantisierung, Inferenz, Whisper / Speech-to-Text, Stable Diffusion, Hugging Face, Endpoint, Tier (Free-Tier), Rate-Limit, Quota, Reset-Fenster, Service-Account, WebGPU, REST vs WebSocket, JSON-Schema, Token-Budget.
+
+### Subsystem 3b — Limit-Sicht (Tier-2-Skill `quota_view`)
+
+Eine besondere Tier-2-Fähigkeit, die der User aktiv freischalten muss. Nach Freischaltung erscheint dauerhaft eine kompakte Status-Pille im Seiten-Header (oben rechts) plus eine Detailseite `/quotas`.
+
+**Status-Pille (kompakt, immer sichtbar):**
+- Zeigt für jeden verbundenen Provider eine Mini-Anzeige: Icon + Rest-Quote als Balken
+- Beispiel: `🦙 Groq 78% · 🤖 NVIDIA 92% · 🎨 HF 4/10`
+- Klick auf die Pille öffnet die Detailseite `/quotas`
+- Farb-Skala: grün >50%, gelb 20-50%, rot <20%
+
+**Detailseite `/quotas`:**
+- Pro Provider eine Karte mit:
+  - Provider-Name, Logo, Free-Tier-Stufe ("Groq · Free Tier · Llama-3.3-70b")
+  - Heute verbraucht / Tageslimit
+  - Diesen Monat verbraucht / Monatslimit (wenn vorhanden)
+  - Zeitpunkt des nächsten Resets ("Reset in 4h 23min")
+  - Letzten 7 Tage als kleiner Balkenchart
+  - Quelle der Daten: live-API oder eigene Schätzung
+- Tipps-Box: "Du hast nur noch 22% Groq-Tokens. Wenn dir der Tag ausgeht: NVIDIA-Key freischalten (Reset täglich um 8 Uhr)."
+
+**Datenquellen pro Provider:**
+
+| Provider | Live-Abfrage möglich? | Fallback |
+|---|---|---|
+| OpenAI | Ja — `GET /v1/usage` | — |
+| Hugging Face | Ja — `GET /api/whoami-v2` (Subscription-Info) | — |
+| Resend | Ja — `GET /v1/api-keys/<id>` (Mail-Count) | Eigener Log |
+| Google Drive | Ja — `GET /drive/v3/about?fields=storageQuota` | — |
+| Groq | Nein (kein Usage-Endpoint) | Eigener Log aus `skill_usage_log` |
+| NVIDIA | Nein | Eigener Log |
+| Open-Meteo | Nein (kein Auth) | Eigener Log, Default: 10.000/Tag |
+| DuckDuckGo | Nein | Eigener Log, Default: 100/Tag |
+| Anthropic / OpenRouter | OpenRouter: ja (`/auth/key`). Andere: nein | Eigener Log |
+
+**Lehrwert dieses Skills:**
+- Klärt was „Rate-Limit", „Quota", „Free-Tier" und „Token-Budget" konkret bedeuten
+- Macht spürbar dass jede LLM-Anfrage Geld/Credits kostet
+- Motiviert effizientes Prompt-Design ("warum kostet meine Frage 500 Tokens?")
+- Belohnt User die mehrere Provider verbinden — sie haben mehr Spielraum
+
+**Implementierung (knapp):**
+- Edge Function `quota-check` läuft on-demand wenn User die Pille öffnet oder Auto-Refresh alle 5 Min
+- Holt Live-Daten parallel von allen Providern wo möglich, joint mit `skill_usage_log` für Fallback
+- Header-Pille rendert aus zwischengespeicherten Werten (in `localStorage`), aktualisiert sich beim Page-Visit
+
+---
 
 ### Subsystem 4 — Skill-Engine (serverseitig)
 
