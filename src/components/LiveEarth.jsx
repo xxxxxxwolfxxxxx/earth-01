@@ -1,43 +1,39 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Globe from 'react-globe.gl'
 import { supabase } from '../lib/supabase'
 
-// Earth-Texturen: NASA Black Marble (Night) + Topology Bumps für 3D-Gefühl.
-// Quelle: react-globe.gl Beispiele, CDN-hosted.
 const EARTH_NIGHT = '//unpkg.com/three-globe/example/img/earth-night.jpg'
 const BUMP_TEXTURE = '//unpkg.com/three-globe/example/img/earth-topology.png'
 
-// Punkte verblassen nach 8 Sekunden — danach werden sie aus dem Ringe-Array entfernt.
 const RING_LIFETIME_MS = 8000
 
-export default function LiveEarth({ height = 500 }) {
+export default function LiveEarth({ height = 900 }) {
   const globeRef = useRef()
-  const [users, setUsers] = useState([])      // pointsData: alle User mit Standort
-  const [rings, setRings] = useState([])      // ringsData: aktive Pulses
+  const [users, setUsers] = useState([])
+  const [rings, setRings] = useState([])
 
-  // Initiale Standort-Daten laden
+  // Initial: reale User-Standorte + Demo-Locations
   useEffect(() => {
     let cancelled = false
-    supabase
-      .from('profiles')
-      .select('home_lat, home_lon, home_city')
-      .not('home_lat', 'is', null)
-      .not('home_lon', 'is', null)
-      .then(({ data }) => {
-        if (cancelled || !data) return
-        // Anonymisieren: nur Koordinaten + city, keine User-ID
-        const points = data.map((p, i) => ({
-          id: `static-${i}`,
-          lat: p.home_lat,
-          lng: p.home_lon,
-          city: p.home_city ?? '',
-        }))
-        setUsers(points)
-      })
+    Promise.all([
+      supabase.from('profiles')
+        .select('home_lat, home_lon, home_city')
+        .not('home_lat', 'is', null).not('home_lon', 'is', null),
+      supabase.from('demo_locations').select('lat, lon, city').eq('active', true),
+    ]).then(([profiles, demos]) => {
+      if (cancelled) return
+      const real = (profiles.data ?? []).map((p, i) => ({
+        id: `real-${i}`, lat: p.home_lat, lng: p.home_lon, city: p.home_city ?? '', kind: 'real',
+      }))
+      const demo = (demos.data ?? []).map((d, i) => ({
+        id: `demo-${i}`, lat: d.lat, lng: d.lon, city: d.city, kind: 'demo',
+      }))
+      setUsers([...real, ...demo])
+    })
     return () => { cancelled = true }
   }, [])
 
-  // Realtime-Subscription auf agent_activity
+  // Realtime auf agent_activity
   useEffect(() => {
     const channel = supabase
       .channel('live-earth-' + Date.now())
@@ -47,63 +43,59 @@ export default function LiveEarth({ height = 500 }) {
           const a = payload.new
           if (a.lat == null || a.lon == null) return
           const id = `ring-${a.id}-${Date.now()}`
-          setRings(prev => [...prev, {
-            id, lat: Number(a.lat), lng: Number(a.lon), skill: a.skill_id,
-          }])
-          // Auto-Cleanup
-          setTimeout(() => {
-            setRings(prev => prev.filter(r => r.id !== id))
-          }, RING_LIFETIME_MS)
+          setRings(prev => [...prev, { id, lat: Number(a.lat), lng: Number(a.lon) }])
+          setTimeout(() => setRings(prev => prev.filter(r => r.id !== id)), RING_LIFETIME_MS)
         })
       .subscribe()
     return () => supabase.removeChannel(channel)
   }, [])
 
-  // Auto-Rotation der Globe-Kamera
   useEffect(() => {
     const g = globeRef.current
     if (!g) return
     g.controls().autoRotate = true
-    g.controls().autoRotateSpeed = 0.3
+    g.controls().autoRotateSpeed = 0.35
     g.controls().enableZoom = false
     g.controls().enablePan = false
-    // Initiale Kamera-Position: leicht von oben für besseren Blick
-    g.pointOfView({ lat: 30, lng: 10, altitude: 2.5 }, 0)
+    g.pointOfView({ lat: 25, lng: 10, altitude: 2.2 }, 0)
   }, [])
 
-  // Responsive Width
-  const [width, setWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 800)
+  // Responsive: Width an Viewport binden
+  const [size, setSize] = useState(() => {
+    if (typeof window === 'undefined') return { w: 900, h: height }
+    const w = Math.min(window.innerWidth, 1400)
+    return { w, h: Math.min(window.innerHeight * 0.85, height) }
+  })
   useEffect(() => {
-    const onResize = () => setWidth(window.innerWidth)
+    const onResize = () => setSize({
+      w: Math.min(window.innerWidth, 1400),
+      h: Math.min(window.innerHeight * 0.85, height),
+    })
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
-  }, [])
-
-  const globeWidth = Math.min(width, 1000)
+  }, [height])
 
   return (
-    <div className="relative pointer-events-none select-none" style={{ height }}>
+    <div className="relative pointer-events-none select-none">
       <Globe
         ref={globeRef}
-        width={globeWidth}
-        height={height}
+        width={size.w}
+        height={size.h}
         backgroundColor="rgba(0,0,0,0)"
         globeImageUrl={EARTH_NIGHT}
         bumpImageUrl={BUMP_TEXTURE}
-        atmosphereColor="#4488ff"
-        atmosphereAltitude={0.18}
+        atmosphereColor="#5599ff"
+        atmosphereAltitude={0.22}
 
-        // Statische Punkte (User mit Standort)
         pointsData={users}
         pointLat="lat"
         pointLng="lng"
         pointAltitude={0.005}
-        pointColor={() => '#fcd34d'}
-        pointRadius={0.18}
+        pointColor={(d) => d.kind === 'real' ? '#fcd34d' : '#fde68a'}
+        pointRadius={0.2}
         pointResolution={6}
-        pointLabel={(d) => `<div style="color:#fff;font-family:Inter,sans-serif;padding:4px 8px;background:rgba(0,0,0,0.7);border-radius:6px;border:1px solid rgba(255,255,255,0.1);font-size:12px">📍 ${d.city || 'Earth-User'}</div>`}
+        pointLabel={(d) => `<div style="color:#fff;font-family:Inter,sans-serif;padding:4px 8px;background:rgba(0,0,0,0.75);border-radius:6px;border:1px solid rgba(255,255,255,0.15);font-size:12px">📍 ${d.city}</div>`}
 
-        // Aktivitäts-Rings (Live-Pulse)
         ringsData={rings}
         ringLat="lat"
         ringLng="lng"
@@ -113,10 +105,6 @@ export default function LiveEarth({ height = 500 }) {
         ringRepeatPeriod={1000}
         ringAltitude={0.01}
       />
-      {/* Live-Counter Overlay */}
-      <div className="absolute bottom-3 left-3 text-[10px] text-white/40 font-mono pointer-events-none">
-        {users.length} aktive Earth-Bewohner · {rings.length > 0 && <span className="text-yellow-300">{rings.length} live</span>}
-      </div>
     </div>
   )
 }

@@ -39,9 +39,9 @@ export default function Home() {
   return (
     <div>
       {/* Hero */}
-      <section className="min-h-screen flex flex-col items-center justify-center text-center px-4 pt-20 pb-12 relative">
-        <div className="w-full flex justify-center -mb-8">
-          <LiveEarth height={500} />
+      <section className="min-h-screen flex flex-col items-center justify-center text-center px-2 sm:px-4 pt-16 pb-8 relative">
+        <div className="w-full flex justify-center -mb-12 sm:-mb-16">
+          <LiveEarth height={900} />
         </div>
         <div className="max-w-3xl relative">
           <h1 className="font-display text-5xl sm:text-7xl font-bold text-white leading-tight tracking-tight">
