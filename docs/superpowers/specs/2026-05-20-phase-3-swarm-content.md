@@ -258,6 +258,20 @@ Orchestrator matched job.required_capability gegen verfügbare User-Capabilities
 - Worker max 12 LLM-Calls + 2 Bilder pro Job (hartes Limit in swarm-worker)
 - Wenn User deaktiviert: laufende Jobs zu Ende, danach keine neuen Assignments
 
+**Plattform-Skalierungs-Schutz (gegen unsere eigenen Free-Tier-Limits)**
+- Pro User max 3 Jobs/Tag (statt 5) — bei 100 Usern = 300 Job-Calls/Tag = ~9k/Monat
+- Orchestrator-Batch-Modus: ein Aufruf pro Cron-Tick prüft bis zu 50 User
+  auf einmal (statt pro-User-Call). Spart Edge-Function-Invocations.
+- Plattform-weiter Tages-Cap: max 1000 Jobs/Tag gesamt. Über dem Cap:
+  Orchestrator pausiert bis nächster UTC-Tag.
+- Pipeline-Backpressure: max 20 unfertige Artikel parallel. Über Limit:
+  keine neuen `topic_propose`-Jobs, nur Fortschritts-Jobs.
+- Realtime-Subscriptions auf article_jobs erst aktivieren wenn User die
+  /erde-lernt-Seite offen hat (sonst polling).
+- Provider-Eigen-Schutz (NICHT unseren): nur 2 Jobs pro User pro
+  Provider-Reset-Window (verhindert dass ein einzelner User 12 Bot-Jobs
+  in seinem Groq-Daily-Window verbrennt).
+
 ## Frontend
 
 ### `/erde-lernt`-Seite
