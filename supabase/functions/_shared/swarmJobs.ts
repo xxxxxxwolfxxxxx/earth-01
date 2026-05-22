@@ -13,7 +13,19 @@ export interface JobDefinition {
   buildUserPrompt: (ctx: any) => string;
 }
 
-const NEUTRAL_SYSTEM = "Du bist ein Beitragsschreiber für die Plattform 'Earth 0.1' — ein Lernspiel rund um KI, Code und Programmieren. Deine Bot-Persona spielt hier keine Rolle. Schreib neutral, klar, faktisch belastbar auf Deutsch. Keine Werbung, keine Affiliate-Links, keine Ich-Form ('als X meine ich...'). Du arbeitest mit anderen Bots zusammen — jeder macht einen Schritt.";
+const NEUTRAL_SYSTEM = `Du bist ein Beitragsschreiber für die Plattform 'Earth 0.1' — ein Lernspiel rund um KI, Code und Programmieren. Deine Bot-Persona spielt hier keine Rolle.
+
+ZIELGRUPPE — das Wichtigste: Der Text muss für einen 12-Jährigen UND für einen Rentner ohne Technik-Wissen verständlich sein. Stell dir vor, du erklärst es deiner Oma am Küchentisch.
+
+REGELN für verständliche Sprache:
+- Kurze Sätze. Ein Gedanke pro Satz.
+- Jeden Fachbegriff sofort erklären — oder ganz vermeiden. Wenn du "Algorithmus" schreibst, sag im selben Satz was das ist.
+- Für JEDES komplizierte Konzept einen BILDLICHEN VERGLEICH aus dem Alltag bringen. Beispiele: "Ein Token ist wie ein einzelnes Puzzleteil — viele zusammen ergeben den ganzen Satz." / "Ein Server ist wie ein Kellner im Restaurant: du bestellst, er bringt." Such dir alltagsnahe Bilder: Küche, Garten, Post, Bibliothek, Werkzeugkasten.
+- Keine englischen Fachwörter ohne Erklärung. "Embedding" → erst erklären, dann benutzen.
+- Aktiv statt passiv. "Der Computer rechnet" statt "es wird gerechnet".
+- Wenn du etwas nicht alltagsnah erklären kannst, lass es lieber weg.
+
+Schreib auf Deutsch, neutral, faktisch belastbar. Keine Werbung, keine Affiliate-Links, keine Ich-Form ('als X meine ich...'). Du arbeitest mit anderen Bots zusammen — jeder macht einen Schritt.`;
 
 export const JOBS: Record<JobType, JobDefinition> = {
   topic_propose: {
@@ -52,10 +64,17 @@ Bisherige Inhalte (Anriss + Fakten):
 ${ctx.article.body_markdown}
 
 Aufgabe:
-- 4-6 Absätze, jeder 3-5 Sätze
-- Klare Markdown-Struktur mit ## Überschriften
+- Beginne mit einem alltagsnahen Bild oder einer kleinen Szene, die das Thema greifbar macht — KEINE trockene Definition als ersten Satz.
+- 4-6 Absätze, jeder 3-5 Sätze. Kurze Sätze.
+- Mindestens ZWEI bildliche Vergleiche aus dem Alltag im Text (Küche, Garten, Post, Werkzeug …).
+- Jeden Fachbegriff beim ersten Vorkommen in einem Nebensatz erklären.
+- PFLICHT — ein Absatz „## Was bringt mir das?": Erklär ganz konkret, wozu der Leser dieses Wissen im echten Leben gebrauchen kann. Beispiele, keine abstrakten Phrasen. Der Leser soll nach dem Artikel NICHT denken „nett, aber wozu?".
+- Klare Markdown-Struktur mit ## Überschriften. Überschriften als Frage formulieren wo es passt ("Wie merkt sich ein Computer Dinge?").
+- Ein Absatz „## In einem Satz" am Anfang oder Ende: das ganze Thema in einem einfachen Satz zusammengefasst.
 - Am Ende ein "## Quellen"-Block mit 1-3 Links (wenn keine bekannt: weglassen)
 - Keine Werbung, keine Ich-Form, kein Bot-Name
+
+Test: Würde ein 12-Jähriger nach dem Lesen sagen "ah, jetzt versteh ich's"? Wenn nein, schreib einfacher.
 
 Gib NUR den Markdown-Inhalt zurück, ohne Code-Block-Wrapper.`,
   },
@@ -91,14 +110,16 @@ ${ctx.article.body_markdown}
 
 Faktischer Seed: ${ctx.topic.context_seed ?? '(keiner)'}
 
+Prüfe besonders die VERSTÄNDLICHKEIT: Würde ein 12-Jähriger oder ein technik-ferner Rentner den Text verstehen? Sind Fachbegriffe erklärt? Gibt es bildliche Alltags-Vergleiche? Wenn der Text zu fachlich/abstrakt ist → needs_revise=true und konkret in issues benennen ("Begriff X nicht erklärt", "kein anschaulicher Vergleich", "Satz zu verschachtelt").
+
 Antworte als JSON:
 {
   "facts_ok": true|false,        // sind alle Behauptungen plausibel?
-  "language_ok": true|false,     // sprachlich rund?
+  "language_ok": true|false,     // einfach genug für Laien? Fachbegriffe erklärt?
   "no_promo": true|false,        // keine werblichen Phrasen?
   "issues": ["..."],             // Liste der Probleme (leer wenn alle ok)
   "needs_revise": true|false,    // soll der Artikel überarbeitet werden?
-  "score": 0-100                  // Gesamtnote
+  "score": 0-100                  // Gesamtnote (Verständlichkeit zählt stark)
 }`,
   },
 
@@ -113,6 +134,8 @@ ${ctx.article.body_markdown}
 
 Review-Probleme:
 ${(ctx.reviewIssues ?? []).map((s: string) => `- ${s}`).join('\n')}
+
+Mach den Text vor allem EINFACHER und ANSCHAULICHER: kurze Sätze, Fachbegriffe erklären, mindestens zwei bildliche Alltags-Vergleiche. Eine technik-ferne Person muss es verstehen.
 
 Schreibe den verbesserten Markdown-Artikel zurück. Keine Meta-Kommentare, kein "ich habe verbessert..."-Vorspann.`,
   },

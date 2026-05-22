@@ -4,11 +4,10 @@ import Globe from 'react-globe.gl'
 import { supabase } from '../lib/supabase'
 import { bodyScenePosition, sunUnitDirection } from '../lib/ephemeris'
 
-const EARTH_DAY   = '//unpkg.com/three-globe/example/img/earth-blue-marble.jpg'
-const EARTH_NIGHT = '//unpkg.com/three-globe/example/img/earth-night.jpg'
-// NASA Tycho Skymap — Equirectangular Projection des Sternkatalogs.
-// Mit echten Konstellationen, kalibriert zur Himmelskugel.
-const STAR_BG     = 'https://svs.gsfc.nasa.gov/vis/a000000/a004800/a004851/TychoSkymap.t4_04096x02048.jpg'
+const EARTH_DAY   = 'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg'
+const EARTH_NIGHT = 'https://unpkg.com/three-globe/example/img/earth-night.jpg'
+// Sternenhimmel via three-globe (zuverlässig, kein 503 wie NASA-Skymap)
+const STAR_BG     = 'https://unpkg.com/three-globe/example/img/night-sky.png'
 
 const RING_LIFETIME_MS = 8000
 
@@ -35,16 +34,32 @@ const BODY_STYLE = {
   Saturn:  { radius: 9,  color: 0xc9a972, emi: 0.06, halo: 14, haloAlpha: 0.10 },
 }
 
+// Texturen für Körper mit echter Oberfläche (Krater, Bänder etc.)
+const BODY_TEXTURES = {
+  Moon:    'https://threejs.org/examples/textures/planets/moon_1024.jpg',
+  Mars:    'https://threejs.org/examples/textures/planets/mars_1k_color.jpg',
+  Jupiter: 'https://threejs.org/examples/textures/planets/jupiter2_1k.jpg',
+}
+
 function makeBodyMesh(name) {
   const s = BODY_STYLE[name]
   const group = new THREE.Group()
+  const matOpts = {
+    color: s.color,
+    emissive: s.color, emissiveIntensity: s.emi,
+    roughness: 0.92, metalness: 0.0,
+  }
+  if (BODY_TEXTURES[name]) {
+    const loader = new THREE.TextureLoader()
+    loader.setCrossOrigin('anonymous')
+    matOpts.map = loader.load(BODY_TEXTURES[name])
+    // Bei texturierten Körpern Emissive runter, damit Schatten sichtbar bleiben
+    matOpts.emissiveIntensity = 0.0
+    matOpts.color = 0xffffff
+  }
   group.add(new THREE.Mesh(
     new THREE.SphereGeometry(s.radius, 48, 48),
-    new THREE.MeshStandardMaterial({
-      color: s.color,
-      emissive: s.color, emissiveIntensity: s.emi,
-      roughness: 0.85, metalness: 0.0,
-    }),
+    new THREE.MeshStandardMaterial(matOpts),
   ))
   // Halo
   group.add(new THREE.Mesh(
@@ -96,12 +111,14 @@ void main() {
 const FRAGMENT_SHADER = /* glsl */ `
 uniform sampler2D dayMap;
 uniform sampler2D nightMap;
+uniform bool dayReady;
+uniform bool nightReady;
 uniform vec3 sunDir;
 varying vec2 vUv;
 varying vec3 vWorldNormal;
 void main() {
-  vec3 day   = texture2D(dayMap,   vUv).rgb;
-  vec3 night = texture2D(nightMap, vUv).rgb;
+  vec3 day   = dayReady   ? texture2D(dayMap,   vUv).rgb : vec3(0.16, 0.32, 0.52);
+  vec3 night = nightReady ? texture2D(nightMap, vUv).rgb : vec3(0.02, 0.04, 0.10);
   float cosA = dot(normalize(vWorldNormal), normalize(sunDir));
   float blend = smoothstep(-0.12, 0.12, cosA);
   vec3 dayLit   = day * (max(cosA, 0.0) * 0.75 + 0.25);
@@ -117,15 +134,28 @@ export default function LiveEarth({ height = 900 }) {
 
   const { earthMaterial, sunUniformRef } = useMemo(() => {
     const loader = new THREE.TextureLoader()
+    loader.setCrossOrigin('anonymous')
     const sunUniform = { value: sunUnitDirection(new Date()) }
     const mat = new THREE.ShaderMaterial({
       uniforms: {
-        dayMap:   { value: loader.load(EARTH_DAY) },
-        nightMap: { value: loader.load(EARTH_NIGHT) },
-        sunDir:   sunUniform,
+        dayMap:     { value: null },
+        nightMap:   { value: null },
+        dayReady:   { value: false },
+        nightReady: { value: false },
+        sunDir:     sunUniform,
       },
       vertexShader: VERTEX_SHADER,
       fragmentShader: FRAGMENT_SHADER,
+    })
+    loader.load(EARTH_DAY, (tex) => {
+      mat.uniforms.dayMap.value = tex
+      mat.uniforms.dayReady.value = true
+      mat.needsUpdate = true
+    })
+    loader.load(EARTH_NIGHT, (tex) => {
+      mat.uniforms.nightMap.value = tex
+      mat.uniforms.nightReady.value = true
+      mat.needsUpdate = true
     })
     return { earthMaterial: mat, sunUniformRef: sunUniform }
   }, [])

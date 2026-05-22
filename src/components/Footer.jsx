@@ -27,7 +27,7 @@ export default function Footer() {
               die dein Telegram-Bot für dich nutzt.
             </p>
             <div className="mt-4 flex flex-wrap gap-2 text-[10px]">
-              <span className="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">Open Source</span>
+              <span className="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">Code einsehbar</span>
               <span className="px-2 py-1 rounded-full bg-blue-500/10 text-blue-300 border border-blue-500/20">Free Tier</span>
               <span className="px-2 py-1 rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/20">Mobile-first</span>
             </div>
@@ -72,7 +72,14 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="border-t border-white/5 mt-8 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+        {/* Rechtliches */}
+        <div className="border-t border-white/5 mt-8 pt-6 flex flex-wrap gap-x-5 gap-y-2 justify-center">
+          <a href="/impressum" className="text-xs text-gray-400 hover:text-white transition">Impressum</a>
+          <a href="/datenschutz" className="text-xs text-gray-400 hover:text-white transition">Datenschutz</a>
+          <a href="/agb" className="text-xs text-gray-400 hover:text-white transition">Nutzungsbedingungen</a>
+        </div>
+
+        <div className="mt-6 pt-6 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-xs text-gray-500">
             Earth 0.1 &copy; {new Date().getFullYear()} Matthias Dührkop ·
             Daten bleiben bei dir · Affiliate-Links sind <span className="text-amber-300/80">markiert</span>

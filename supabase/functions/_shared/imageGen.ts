@@ -15,37 +15,37 @@ export interface ImageGenResult {
   error?: string;
 }
 
-// HF Inference: FLUX.1-schnell ist sehr schnell und auf der gratis Inference-API
+// HF Inference über den aktuellen Router-Endpunkt (router.huggingface.co).
+// Der alte api-inference.huggingface.co-Endpunkt ist für Bild-Modelle tot.
 const HF_MODELS = [
   "black-forest-labs/FLUX.1-schnell",
-  "stabilityai/sdxl-turbo",
   "stabilityai/stable-diffusion-xl-base-1.0",
 ];
 
 async function genHF(prompt: string, key: string): Promise<ImageGenResult> {
+  let lastErr = "";
   for (const model of HF_MODELS) {
     try {
-      const r = await fetch(`https://api-inference.huggingface.co/models/${model}`, {
+      const r = await fetch(`https://router.huggingface.co/hf-inference/models/${model}`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${key}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          inputs: prompt,
-          options: { wait_for_model: true },
-        }),
+        body: JSON.stringify({ inputs: prompt }),
       });
-      if (!r.ok) continue;
       const ct = r.headers.get("content-type") ?? "";
-      if (!ct.includes("image")) continue;
-      const blob = await r.blob();
-      return { ok: true, blob, provider: "huggingface", model };
-    } catch {
-      continue;
+      if (r.ok && ct.includes("image")) {
+        return { ok: true, blob: await r.blob(), provider: "huggingface", model };
+      }
+      // Fehlerursache für die Diagnose mitnehmen
+      const body = await r.text().catch(() => "");
+      lastErr = `${model.split("/").pop()}: HTTP ${r.status}${body ? " " + body.slice(0, 120) : ""}`;
+    } catch (e) {
+      lastErr = `${model.split("/").pop()}: ${(e as Error).message}`;
     }
   }
-  return { ok: false, error: "Kein HF-Modell hat geantwortet (Quota oder Modell offline)" };
+  return { ok: false, error: lastErr };
 }
 
 // Replicate: höhere Qualität, kostet Credits.

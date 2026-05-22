@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { BOT } from "../_shared/botMessages.ts";
 import { buildBriefing } from "../_shared/briefing.ts";
+import { parseFeed } from "../_shared/skillHandlers.ts";
 
 async function sendTelegram(token: string, chatId: string, text: string) {
   try {
@@ -91,6 +92,59 @@ async function processBriefings(supabase: any): Promise<number> {
   return sent;
 }
 
+// RSS-Feeds prüfen — alle ~30 Min pro Feed, neue Einträge pushen.
+async function processRssFeeds(supabase: any): Promise<number> {
+  const cutoff = new Date(Date.now() - 30 * 60_000).toISOString();
+  const { data: feeds } = await supabase
+    .from("rss_feeds")
+    .select("id, user_id, feed_url, feed_title, last_entry_key, last_checked_at")
+    .or(`last_checked_at.is.null,last_checked_at.lt.${cutoff}`)
+    .limit(40);
+  if (!feeds || feeds.length === 0) return 0;
+
+  let pushed = 0;
+  for (const feed of feeds) {
+    try {
+      const r = await fetch(feed.feed_url, { headers: { "User-Agent": "Earth01-RSS/1.0" } });
+      if (!r.ok) {
+        await supabase.from("rss_feeds").update({ last_checked_at: new Date().toISOString() }).eq("id", feed.id);
+        continue;
+      }
+      const xml = await r.text();
+      const parsed = parseFeed(xml);
+      // Neue Einträge = alle bis zum bekannten last_entry_key
+      const newEntries: { title: string; link: string; key: string }[] = [];
+      for (const e of parsed.entries) {
+        if (e.key === feed.last_entry_key) break;
+        newEntries.push(e);
+      }
+      const newestKey = parsed.entries[0]?.key ?? feed.last_entry_key;
+
+      // Telegram-Daten des Users
+      if (newEntries.length > 0 && feed.last_entry_key) {
+        const { data: profile } = await supabase
+          .from("profiles").select("telegram_bot_token, telegram_chat_id")
+          .eq("id", feed.user_id).single();
+        if (profile?.telegram_bot_token && profile?.telegram_chat_id) {
+          // Max 5 pro Tick, älteste zuerst
+          for (const e of newEntries.slice(0, 5).reverse()) {
+            const text = `📰 <b>${feed.feed_title}</b>\n${e.title}${e.link ? `\n${e.link}` : ''}`;
+            await sendTelegram(profile.telegram_bot_token, profile.telegram_chat_id, text);
+            pushed++;
+          }
+        }
+      }
+      await supabase.from("rss_feeds").update({
+        last_entry_key: newestKey,
+        last_checked_at: new Date().toISOString(),
+      }).eq("id", feed.id);
+    } catch {
+      await supabase.from("rss_feeds").update({ last_checked_at: new Date().toISOString() }).eq("id", feed.id);
+    }
+  }
+  return pushed;
+}
+
 Deno.serve(async (_req) => {
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -99,6 +153,7 @@ Deno.serve(async (_req) => {
 
   const fired = await processReminders(supabase);
   const briefings = await processBriefings(supabase);
+  const rssPushed = await processRssFeeds(supabase);
 
   let orchestratorResult: any = null;
   try {
@@ -113,7 +168,7 @@ Deno.serve(async (_req) => {
   }
 
   return new Response(
-    JSON.stringify({ fired, briefings, swarm: orchestratorResult }),
+    JSON.stringify({ fired, briefings, rss: rssPushed, swarm: orchestratorResult }),
     { headers: { "Content-Type": "application/json" } },
   );
 });

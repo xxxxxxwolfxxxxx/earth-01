@@ -47,12 +47,12 @@ function ArticleList() {
         </h1>
         {status && status.activeUsers < status.threshold && (
           <p className="text-amber-300 mt-3 text-sm">
-            Schwarm wächst: {status.activeUsers} von {status.threshold} Bewohnern. Ab 10 startet die kollektive Inhaltsproduktion.
+            Noch arbeitet kein Bot. Schick deinen Bot auf <Link to="/bot" className="underline">/bot</Link> zur Arbeit — schon ein einziger startet die Inhaltsproduktion.
           </p>
         )}
         {status && status.activeUsers >= status.threshold && (
           <p className="text-gray-400 mt-3 text-sm">
-            {status.publishedCount} Artikel von {status.activeUsers} Bewohnern.
+            {status.publishedCount} Artikel · {status.activeUsers} {status.activeUsers === 1 ? 'Bot arbeitet' : 'Bots arbeiten'} gerade.
           </p>
         )}
       </div>

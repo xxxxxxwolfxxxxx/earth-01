@@ -68,6 +68,11 @@ Deno.serve(async (req) => {
     await supabase.from("profiles").update({ telegram_chat_id: String(msg.chat.id) }).eq("id", profile.id);
   }
 
+  // Befehlsmenü synchronisieren: alle freigeschalteten Skills als /-Vorschläge.
+  // Fire-and-forget, blockiert die Antwort nicht.
+  syncBotCommands(supabase, profile.telegram_bot_token, msg.chat?.id, profile.id)
+    .catch((e) => console.warn("syncBotCommands:", (e as Error).message));
+
   // Slash-Commands: /start, /help
   if (text === "/start" || text === "/help") {
     await sendTelegram(profile.telegram_bot_token, msg.chat.id,
@@ -263,4 +268,57 @@ async function sendTelegramAudio(token: string, chat_id: any, blob: Blob, captio
       body: form,
     });
   } catch (e) { console.warn("Telegram sendAudio failed:", e); }
+}
+
+// ─── Befehlsmenü-Sync ─────────────────────────────────────
+// Telegram zeigt beim Tippen von "/" ein Menü — aber nur mit Befehlen,
+// die per setMyCommands registriert sind. Wir setzen pro Chat genau die
+// Befehle, die der User freigeschaltet hat.
+// Pro Skill ein oder mehrere /-Befehle fürs Telegram-Menü.
+const SKILL_COMMANDS: Record<string, { command: string; description: string }[]> = {
+  weather:      [{ command: "wetter",    description: "Wetter einer Stadt" }],
+  web_search:   [{ command: "suche",     description: "Das Web durchsuchen" }],
+  wikipedia:    [{ command: "wiki",      description: "Wikipedia-Kurzfassung" }],
+  currency:     [{ command: "kurs",      description: "Währungen umrechnen" }],
+  countries:    [{ command: "land",      description: "Infos zu einem Land" }],
+  notes:        [{ command: "notiz",     description: "Notiz speichern / anzeigen" }],
+  mood:         [{ command: "stimmung",  description: "Stimmung 1-5 eintragen" }],
+  habits:       [{ command: "habit",     description: "Gewohnheit abhaken" }],
+  reminder:     [{ command: "erinner",   description: "Erinnerung setzen" }],
+  pomodoro:     [{ command: "pomodoro",  description: "25-Minuten-Fokus-Timer" }],
+  joke_quote:   [{ command: "witz",      description: "Einen Witz" },
+                 { command: "zitat",     description: "Ein berühmtes Zitat" }],
+  ask_memory:   [{ command: "frag",      description: "Deine Notizen durchsuchen" }],
+  quota_check:  [{ command: "quota",     description: "API-Limits anzeigen" }],
+  image_gen:    [{ command: "bild",      description: "Bild generieren lassen" }],
+  voice_out:    [{ command: "sage",      description: "Bot antwortet per Sprache" }],
+  mail_send:    [{ command: "mail",      description: "E-Mail verschicken" }],
+  chat:         [{ command: "chat",      description: "Frei mit dem Bot reden" }],
+  teamwork:     [{ command: "arbeiten",  description: "Bot zur Schwarm-Arbeit schicken" },
+                 { command: "credits",   description: "Dein Guthaben anzeigen" }],
+  rss:          [{ command: "rss",       description: "RSS-Feed abonnieren" },
+                 { command: "feeds",     description: "Deine RSS-Abos anzeigen" }],
+  dice:         [{ command: "wuerfel",   description: "Würfeln oder Münze werfen" }],
+  qr_code:      [{ command: "qr",        description: "QR-Code aus Text erzeugen" }],
+  hash_tools:   [{ command: "hash",      description: "SHA-256-Hash oder UUID" }],
+  password_gen: [{ command: "passwort",  description: "Sicheres Passwort erzeugen" }],
+};
+
+async function syncBotCommands(supabase: any, botToken: string | null, chatId: any, userId: string) {
+  if (!botToken || !chatId) return;
+  const { data: unlocked } = await supabase
+    .from("user_skills").select("skill_id").eq("user_id", userId);
+  const commands = (unlocked ?? [])
+    .flatMap((u: any) => SKILL_COMMANDS[u.skill_id] ?? [])
+    .filter(Boolean);
+  // /start ist immer dabei
+  commands.unshift({ command: "start", description: "Bot starten / Hilfe" });
+  await fetch(`https://api.telegram.org/bot${botToken}/setMyCommands`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      commands,
+      scope: { type: "chat", chat_id: chatId },
+    }),
+  });
 }

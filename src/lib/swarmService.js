@@ -25,13 +25,14 @@ export async function fetchRecentJobs({ limit = 10 } = {}) {
 }
 
 export async function fetchSwarmStatus() {
+  // Phase 4.5: Schwarm aktiviert sich ab 1 arbeitendem Bot (Solo-Modus).
   const { count: active } = await supabase.from('profiles')
     .select('id', { count: 'exact', head: true })
-    .eq('donate_tokens', true)
+    .eq('bot_at_work', true)
   const { count: articleCount } = await supabase.from('articles')
     .select('id', { count: 'exact', head: true })
     .eq('status', 'published')
-  return { activeUsers: active ?? 0, publishedCount: articleCount ?? 0, threshold: 10 }
+  return { activeUsers: active ?? 0, publishedCount: articleCount ?? 0, threshold: 1 }
 }
 
 export async function suggestTopic(title) {

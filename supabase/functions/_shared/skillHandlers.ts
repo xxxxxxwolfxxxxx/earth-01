@@ -116,7 +116,33 @@ export async function skillCountries(ctx: SkillContext): Promise<SkillResult> {
   }
 }
 
-export async function skillJokeQuote(_ctx: SkillContext): Promise<SkillResult> {
+const FAMOUS_QUOTES = [
+  ["Der Weg ist das Ziel.", "Konfuzius"],
+  ["Phantasie ist wichtiger als Wissen, denn Wissen ist begrenzt.", "Albert Einstein"],
+  ["Es ist nicht wenig Zeit, die wir haben, sondern es ist viel Zeit, die wir nicht nutzen.", "Seneca"],
+  ["Wer immer tut, was er schon kann, bleibt immer das, was er schon ist.", "Henry Ford"],
+  ["Man sieht nur mit dem Herzen gut. Das Wesentliche ist für die Augen unsichtbar.", "Antoine de Saint-Exupéry"],
+  ["Sei du selbst die Veränderung, die du dir wünschst für diese Welt.", "Mahatma Gandhi"],
+  ["Erfolg ist nicht endgültig, Misserfolg ist nicht fatal. Es ist der Mut weiterzumachen, der zählt.", "Winston Churchill"],
+  ["Wer kämpft, kann verlieren. Wer nicht kämpft, hat schon verloren.", "Bertolt Brecht"],
+  ["Auch aus Steinen, die einem in den Weg gelegt werden, kann man Schönes bauen.", "Johann Wolfgang von Goethe"],
+  ["Das Geheimnis des Vorwärtskommens besteht darin, den ersten Schritt zu tun.", "Mark Twain"],
+  ["In der Mitte von Schwierigkeiten liegen die Möglichkeiten.", "Albert Einstein"],
+  ["Nicht weil es schwer ist, wagen wir es nicht, sondern weil wir es nicht wagen, ist es schwer.", "Seneca"],
+  ["Wer ein Warum zum Leben hat, erträgt fast jedes Wie.", "Friedrich Nietzsche"],
+  ["Glück ist das einzige, das sich verdoppelt, wenn man es teilt.", "Albert Schweitzer"],
+  ["Die Neugier steht immer an erster Stelle eines Problems, das gelöst werden will.", "Galileo Galilei"],
+  ["Es ist nie zu spät, das zu werden, was man hätte sein können.", "George Eliot"],
+  ["Wissen ist Macht.", "Francis Bacon"],
+  ["Der frühe Vogel fängt den Wurm, aber die zweite Maus bekommt den Käse.", "Sprichwort"],
+];
+
+export async function skillJokeQuote(ctx: SkillContext): Promise<SkillResult> {
+  // /zitat → berühmtes Zitat. /witz (oder alles andere) → Witz.
+  if (/zitat/i.test(ctx.message)) {
+    const [q, author] = FAMOUS_QUOTES[Math.floor(Math.random() * FAMOUS_QUOTES.length)];
+    return { reply: `💬 „${q}"\n— ${author}` };
+  }
   try {
     const r = await fetch("https://v2.jokeapi.dev/joke/Any?lang=de&safe-mode");
     const d = await r.json();
@@ -156,14 +182,17 @@ export async function skillNotes(ctx: SkillContext): Promise<SkillResult> {
 export async function skillMood(ctx: SkillContext): Promise<SkillResult> {
   const m = ctx.message.match(/(?:\/stimmung|stimmung:|mood:)\s*(\d)/i);
   const value = m ? parseInt(m[1]) : null;
-  if (!value || value < 1 || value > 5) return { reply: `Sag deinem Bot eine Zahl 1-5. Z.B. 'stimmung: 4'.` };
+  if (!value || value < 1 || value > 5) {
+    return { reply: `Sag deinem Bot eine Zahl von 1 bis 5:\n1 😢 sehr schlecht · 2 😟 schlecht · 3 😐 geht so · 4 🙂 gut · 5 😄 super\n\nZ.B. „stimmung: 4".` };
+  }
   await ctx.supabase.from("user_data").upsert({
     user_id: ctx.user_id,
     namespace: "mood",
     key: new Date().toISOString().slice(0, 10),
     value: { score: value },
   }, { onConflict: "user_id,namespace,key" });
-  return { reply: `😊 Stimmung ${value}/5 notiert für heute.` };
+  const faces = { 1: '😢 sehr schlecht', 2: '😟 schlecht', 3: '😐 geht so', 4: '🙂 gut', 5: '😄 super' };
+  return { reply: `${faces[value as 1|2|3|4|5]} — Stimmung ${value}/5 für heute notiert.` };
 }
 
 export async function skillHabits(ctx: SkillContext): Promise<SkillResult> {
@@ -206,7 +235,7 @@ export async function skillPomodoro(ctx: SkillContext): Promise<SkillResult> {
     { user_id: ctx.user_id, content: "Fokus-Block vorbei. 5 Min Pause!", remind_at: focus, source_skill: "pomodoro" },
     { user_id: ctx.user_id, content: "Pause vorbei. Zurück an die Arbeit oder neuen Pomodoro?", remind_at: breakTime, source_skill: "pomodoro" },
   ]);
-  return { reply: `🍅 Pomodoro läuft. 25 Min Fokus, dann pingt dich dein Bot.` };
+  return { reply: `🍅 Pomodoro läuft! 25 Min konzentriert arbeiten — dann meld ich mich zur Pause, 5 Min später zum Weitermachen. Danach ist die Runde vorbei (nichts auszuschalten). Für die nächste Runde schick einfach wieder /pomodoro.` };
 }
 
 // ─── Dispatch ────────────────────────────────────────────
@@ -231,6 +260,11 @@ export async function executeSkill(skill_id: string, ctx: SkillContext): Promise
     case "mail_send": return skillMailSend(ctx);
     case "chat": return skillChat(ctx);
     case "teamwork": return skillTeamwork(ctx);
+    case "rss": return skillRss(ctx);
+    case "dice": return skillDice(ctx);
+    case "qr_code": return skillQr(ctx);
+    case "hash_tools": return skillHash(ctx);
+    case "password_gen": return skillPassword(ctx);
     default: return { reply: BOT.unknown_command() };
   }
 }
@@ -643,4 +677,149 @@ export async function skillTeamwork(ctx: SkillContext): Promise<SkillResult> {
     return { reply: `🏠 Dein Bot ist wieder zu Hause. Aktueller Stand: ${Number(profile.job_credits).toFixed(1)} Credits.` };
   }
   return { reply: "Probier: /arbeiten · /heim · /credits" };
+}
+
+// ─── RSS-Reader ───────────────────────────────────────────
+// /rss <url>  — Feed abonnieren
+// /feeds      — Abos auflisten
+// /unfeed <n> — Abo Nummer n entfernen
+
+// Minimaler RSS/Atom-Parser. Liefert {title, entries:[{title,link,key}]}.
+export function parseFeed(xml: string): { title: string; entries: { title: string; link: string; key: string }[] } {
+  const pick = (s: string, tag: string): string => {
+    const m = s.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i'));
+    let v = m?.[1] ?? '';
+    v = v.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').trim();
+    return v;
+  };
+  const pickAttr = (s: string, tag: string, attr: string): string => {
+    const m = s.match(new RegExp(`<${tag}[^>]*\\b${attr}=["']([^"']+)["']`, 'i'));
+    return m?.[1] ?? '';
+  };
+  // Feed-Titel: erstes <title> im channel/feed-Header
+  const feedTitle = pick(xml, 'title') || 'Feed';
+  // Einträge: <item> (RSS) oder <entry> (Atom)
+  const isAtom = /<entry[\s>]/i.test(xml) && !/<item[\s>]/i.test(xml);
+  const blocks = xml.match(isAtom ? /<entry[\s>][\s\S]*?<\/entry>/gi : /<item[\s>][\s\S]*?<\/item>/gi) ?? [];
+  const entries = blocks.slice(0, 10).map((b) => {
+    const title = pick(b, 'title') || '(ohne Titel)';
+    let link = pick(b, 'link');
+    if (!link) link = pickAttr(b, 'link', 'href'); // Atom
+    const key = pick(b, 'guid') || pick(b, 'id') || link || pick(b, 'pubDate') || pick(b, 'updated') || title;
+    return { title, link, key };
+  });
+  return { title: feedTitle, entries };
+}
+
+export async function skillRss(ctx: SkillContext): Promise<SkillResult> {
+  const msg = ctx.message.trim();
+
+  // /feeds — auflisten
+  if (/^\/feeds\b/i.test(msg)) {
+    const { data: feeds } = await ctx.supabase
+      .from("rss_feeds").select("feed_title, feed_url")
+      .eq("user_id", ctx.user_id).order("created_at", { ascending: true });
+    if (!feeds || feeds.length === 0) {
+      return { reply: "📰 Du hast noch keine Feeds abonniert. Probier: /rss https://www.tagesschau.de/xml/rss2" };
+    }
+    const list = feeds.map((f: any, i: number) => `${i + 1}. ${f.feed_title || f.feed_url}`).join("\n");
+    return { reply: `📰 Deine Feeds:\n${list}\n\nZum Abbestellen: /unfeed und die Nummer, z.B. /unfeed 1` };
+  }
+
+  // /unfeed <n> — entfernen
+  const unfeedM = msg.match(/^\/unfeed\s+(\d+)/i);
+  if (unfeedM) {
+    const idx = parseInt(unfeedM[1]) - 1;
+    const { data: feeds } = await ctx.supabase
+      .from("rss_feeds").select("id, feed_title")
+      .eq("user_id", ctx.user_id).order("created_at", { ascending: true });
+    if (!feeds || idx < 0 || idx >= feeds.length) {
+      return { reply: `Kein Feed mit Nummer ${idx + 1}. /feeds zeigt deine Liste.` };
+    }
+    await ctx.supabase.from("rss_feeds").delete().eq("id", feeds[idx].id);
+    return { reply: `🗑️ Feed „${feeds[idx].feed_title}" entfernt.` };
+  }
+
+  // /rss <url> — abonnieren
+  const urlM = msg.match(/\/rss\s+(\S+)/i);
+  const url = urlM?.[1]?.trim();
+  if (!url || !/^https?:\/\//i.test(url)) {
+    return { reply: "Schick mir eine Feed-URL: /rss https://www.tagesschau.de/xml/rss2" };
+  }
+
+  try {
+    const r = await fetch(url, { headers: { "User-Agent": "Earth01-RSS/1.0" } });
+    if (!r.ok) return { reply: `Die Seite antwortet mit Fehler ${r.status}. Ist die URL korrekt?` };
+    const xml = await r.text();
+    if (!/<(rss|feed|rdf:RDF)[\s>]/i.test(xml)) {
+      return { reply: "Das sieht nicht nach einem RSS-/Atom-Feed aus. Such auf der Seite nach dem RSS-Symbol oder einer .xml-Adresse." };
+    }
+    const parsed = parseFeed(xml);
+    const newestKey = parsed.entries[0]?.key ?? '';
+
+    const { error } = await ctx.supabase.from("rss_feeds").upsert({
+      user_id: ctx.user_id,
+      feed_url: url,
+      feed_title: parsed.title.slice(0, 200),
+      last_entry_key: newestKey,
+      last_checked_at: new Date().toISOString(),
+    }, { onConflict: "user_id,feed_url" });
+    if (error) return { reply: `Konnte den Feed nicht speichern: ${error.message}` };
+
+    const preview = parsed.entries[0]?.title ?? '';
+    return {
+      reply: `📰 Abonniert: „${parsed.title}"\n\nNeuester Eintrag: ${preview}\n\nAb jetzt schick ich dir neue Einträge automatisch.\n\n• /feeds — deine Abos anzeigen\n• /unfeed 1 — Abo Nummer 1 abbestellen`,
+    };
+  } catch (e) {
+    return { reply: `Feed konnte nicht geladen werden: ${(e as Error).message}` };
+  }
+}
+
+// ─── Browser-Skills auch als Bot-Befehle ──────────────────
+
+export async function skillDice(ctx: SkillContext): Promise<SkillResult> {
+  const isCoin = /m[üu]nze/i.test(ctx.message);
+  if (isCoin) {
+    return { reply: Math.random() < 0.5 ? "🪙 Kopf" : "🪙 Zahl" };
+  }
+  const n = Math.ceil(Math.random() * 6);
+  return { reply: `🎲 ${["⚀","⚁","⚂","⚃","⚄","⚅"][n-1]} — eine ${n}` };
+}
+
+export async function skillHash(ctx: SkillContext): Promise<SkillResult> {
+  if (/\/uuid/i.test(ctx.message)) {
+    return { reply: `🆔 Neue UUID:\n${crypto.randomUUID()}` };
+  }
+  const m = ctx.message.match(/\/hash\s+(.+)/i);
+  const text = (m?.[1] ?? "").trim();
+  if (!text) return { reply: "Schick: /hash <dein Text> — ich geb dir den SHA-256-Fingerabdruck. Oder /uuid für eine einmalige ID." };
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  const hex = [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
+  return { reply: `🔐 SHA-256 von „${text.slice(0, 40)}":\n${hex}` };
+}
+
+export async function skillPassword(ctx: SkillContext): Promise<SkillResult> {
+  const m = ctx.message.match(/\/passwort\s+(\d+)/i) || ctx.message.match(/\/password\s+(\d+)/i);
+  let len = m ? parseInt(m[1]) : 20;
+  len = Math.max(8, Math.min(64, len));
+  const chars = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%&*+-=?";
+  const rnd = new Uint32Array(len);
+  crypto.getRandomValues(rnd);
+  const pw = [...rnd].map(r => chars[r % chars.length]).join("");
+  return { reply: `🔑 Sicheres Passwort (${len} Zeichen):\n${pw}\n\nLänge ist wichtiger als Sonderzeichen — je länger, desto sicherer. Mit /passwort 32 kriegst du ein längeres.` };
+}
+
+export async function skillQr(ctx: SkillContext): Promise<SkillResult> {
+  const m = ctx.message.match(/\/qr\s+(.+)/i);
+  const text = (m?.[1] ?? "").trim();
+  if (!text) return { reply: "Schick: /qr <Text oder Link> — ich mach einen QR-Code draus." };
+  try {
+    const url = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(text)}`;
+    const r = await fetch(url);
+    if (!r.ok) return { reply: `QR-Dienst antwortet mit Fehler ${r.status}.` };
+    const blob = await r.blob();
+    return { reply: "", image: blob, imageCaption: `📱 QR-Code für: ${text.slice(0, 80)}` };
+  } catch (e) {
+    return { reply: `QR-Code konnte nicht erstellt werden: ${(e as Error).message}` };
+  }
 }

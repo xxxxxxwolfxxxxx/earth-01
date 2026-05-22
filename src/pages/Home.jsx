@@ -124,7 +124,7 @@ export default function Home() {
             {
               step: '02',
               title: 'Skill erlernen',
-              desc: 'Drei Karten pro Skill: kurz lesen was es ist, dann selbst ausprobieren — entweder direkt im Browser oder per Telegram-Nachricht an deinen Bot.',
+              desc: 'Pro Skill eine Lern-Karte: kurz lesen was es ist und wozu, dann direkt ausprobieren — im Browser oder per Telegram-Nachricht an deinen Bot.',
               icon: BookOpen,
             },
             {
@@ -169,8 +169,9 @@ export default function Home() {
               verstehst du wo ein LLM wirklich hilft und wo simpler Code reicht.
             </p>
             <p>
-              Die Plattform ist Open-Source-tauglich und läuft auf kostenlosen Bausteinen
-              (Supabase, Netlify, dein eigenes Telegram). Sie soll Schulen, Auszubildenden
+              Der Quellcode ist öffentlich einsehbar (nicht-kommerzielle Nutzung erlaubt)
+              und läuft auf kostenlosen Bausteinen (Supabase, Netlify, dein eigenes
+              Telegram). Sie soll Schulen, Auszubildenden
               und KI-Neugierigen einen ehrlichen Einstieg geben — und dabei direkt ein
               nützliches Werkzeug an die Hand drücken.
             </p>

@@ -129,43 +129,63 @@ export async function savePersona(p) {
   }).eq('id', user.id)
 }
 
-// ─── Schwarm-Donation ───
-export async function fetchDonateSettings() {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-  const { data } = await supabase.from('profiles')
-    .select('donate_tokens, donate_threshold, donate_show_credit, swarm_jobs_today')
-    .eq('id', user.id).single()
-  return data
-}
-
-export async function saveDonateSettings(s) {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Login')
-  await supabase.from('profiles').update({
-    donate_tokens: !!s.donate_tokens,
-    donate_threshold: Math.min(90, Math.max(10, s.donate_threshold ?? 30)),
-    donate_show_credit: !!s.donate_show_credit,
-  }).eq('id', user.id)
-}
-
-export async function fetchMyContributions() {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return 0
-  const { count } = await supabase.from('article_jobs')
-    .select('id', { count: 'exact', head: true })
-    .eq('assigned_to', user.id).eq('status', 'done')
-  return count ?? 0
-}
-
 // ─── Phase 4: Job-Wirtschaft ───
 export async function fetchWorkStatus() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
   const { data } = await supabase.from('profiles')
-    .select('bot_at_work, bot_work_started_at, job_credits, jobs_done_total')
+    .select('bot_at_work, bot_work_started_at, job_credits, jobs_done_total, swarm_jobs_today, max_jobs_per_day, llm_api_key')
     .eq('id', user.id).single()
   return data
+}
+
+// Multi-LLM: extra_llm_keys verwalten
+export async function fetchAllLlmKeys() {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { active: null, extras: [] }
+  const { data } = await supabase.from('profiles')
+    .select('llm_api_key, llm_base_url, llm_model, llm_label, extra_llm_keys')
+    .eq('id', user.id).single()
+  if (!data) return { active: null, extras: [] }
+  const active = data.llm_api_key
+    ? { key: data.llm_api_key, base_url: data.llm_base_url, model: data.llm_model, label: data.llm_label }
+    : null
+  return { active, extras: Array.isArray(data.extra_llm_keys) ? data.extra_llm_keys : [] }
+}
+
+export async function addExtraLlmKey({ key, base_url, model, label }) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Login')
+  const { data: cur } = await supabase.from('profiles')
+    .select('extra_llm_keys').eq('id', user.id).single()
+  const arr = Array.isArray(cur?.extra_llm_keys) ? cur.extra_llm_keys : []
+  arr.push({ key, base_url, model, label: label || '' })
+  await supabase.from('profiles').update({ extra_llm_keys: arr }).eq('id', user.id)
+}
+
+export async function removeExtraLlmKey(index) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Login')
+  const { data: cur } = await supabase.from('profiles')
+    .select('extra_llm_keys').eq('id', user.id).single()
+  const arr = Array.isArray(cur?.extra_llm_keys) ? cur.extra_llm_keys : []
+  arr.splice(index, 1)
+  await supabase.from('profiles').update({ extra_llm_keys: arr }).eq('id', user.id)
+}
+
+export async function swapActiveLlm(index) {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Login')
+  const { data } = await supabase.rpc('swap_active_llm', { p_user_id: user.id, p_index: index })
+  return data
+}
+
+export async function setMaxJobsPerDay(n) {
+  const v = Math.max(0, Math.min(1000, Math.round(Number(n) || 0)))
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Login')
+  await supabase.from('profiles').update({ max_jobs_per_day: v }).eq('id', user.id)
+  return v
 }
 
 export async function setBotAtWork(active) {
@@ -195,6 +215,35 @@ export async function startMammothWebsite(brief) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
     body: JSON.stringify({ task_type: 'website', brief }),
+  })
+  const j = await r.json().catch(() => ({}))
+  if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`)
+  return j
+}
+
+// Phase 4.6: Dynamisches Angebot vom LLM des Users
+export async function estimateProject(prompt) {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) throw new Error('Login')
+  const url = import.meta.env.VITE_SUPABASE_URL
+  const r = await fetch(`${url}/functions/v1/mammoth-estimate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+    body: JSON.stringify({ prompt }),
+  })
+  const j = await r.json().catch(() => ({}))
+  if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`)
+  return j
+}
+
+export async function startProject(prompt, plan) {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) throw new Error('Login')
+  const url = import.meta.env.VITE_SUPABASE_URL
+  const r = await fetch(`${url}/functions/v1/start-mammoth`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+    body: JSON.stringify({ prompt, plan }),
   })
   const j = await r.json().catch(() => ({}))
   if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`)

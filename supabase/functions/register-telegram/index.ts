@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
     // Profil laden
     const { data: profile } = await supabase
       .from("profiles")
-      .select("telegram_bot_token, telegram_webhook_secret, telegram_chat_id")
+      .select("telegram_bot_token, telegram_webhook_secret, telegram_chat_id, bot_name")
       .eq("id", user.id)
       .single();
     if (!profile) return json({ error: "Profil nicht gefunden" }, 404);
@@ -127,12 +127,19 @@ Deno.serve(async (req) => {
       return json({ error: setJson.description || `setWebhook ${setRes.status}` }, 502);
     }
 
-    // Profil updaten (Token + Secret + Timestamp)
-    await supabase.from("profiles").update({
+    // Profil updaten (Token + Secret + Timestamp + Bot-Identität)
+    // bot_name nur setzen, wenn der User noch keinen eigenen Namen vergeben hat —
+    // wir wollen seine Wahl nicht überschreiben.
+    const updates: Record<string, unknown> = {
       telegram_bot_token: botToken,
       telegram_webhook_secret: secret,
       telegram_linked_at: new Date().toISOString(),
-    }).eq("id", user.id);
+      bot_username: botInfo.username,
+    };
+    if (!profile.bot_name) {
+      updates.bot_name = botInfo.first_name || botInfo.username;
+    }
+    await supabase.from("profiles").update(updates).eq("id", user.id);
 
     return json({
       ok: true,

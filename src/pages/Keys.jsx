@@ -8,7 +8,16 @@ import {
 } from '../lib/keyService'
 import { useAuth } from '../contexts/AuthContext'
 import QuotaWidget from '../components/QuotaWidget'
-import { fetchUserSkills } from '../lib/skillService'
+import { fetchUserSkills, markSkillUnlocked } from '../lib/skillService'
+import { fetchAllLlmKeys, addExtraLlmKey, removeExtraLlmKey, swapActiveLlm } from '../lib/cloudService'
+import { detectProvider as detectLlmProvider } from '../lib/keyService'
+
+// Setup-Skills, die durch Profil-Felder automatisch freigeschaltet werden.
+// So muss der User nicht zusätzlich noch die Lektion mit „Erledigt"-Button durchklicken.
+const SETUP_SKILL_BY_FIELD = {
+  llm_api_key: 'api_keys',
+  telegram_bot_token: 'telegram',
+}
 
 function mask(key) {
   if (!key) return ''
@@ -29,9 +38,18 @@ export default function Keys() {
 
   useEffect(() => {
     if (!user) { setLoading(false); return }
-    fetchUserKeys().then(k => { setKeys(k ?? {}); setLoading(false) })
-    fetchUserSkills().then(us => {
-      setHasQuotaSkill(us.some(s => s.skill_id === 'quota_check'))
+    fetchUserKeys().then(async (k) => {
+      setKeys(k ?? {})
+      setLoading(false)
+      // Backfill: alte Accounts, die Keys gespeichert haben bevor Auto-Unlock existierte
+      const us = await fetchUserSkills().catch(() => [])
+      const unlocked = new Set(us.map(s => s.skill_id))
+      setHasQuotaSkill(unlocked.has('quota_check'))
+      for (const [field, skillId] of Object.entries(SETUP_SKILL_BY_FIELD)) {
+        if (k?.[field] && !unlocked.has(skillId)) {
+          try { await markSkillUnlocked(skillId) } catch {}
+        }
+      }
     })
   }, [user])
 
@@ -67,6 +85,12 @@ export default function Keys() {
       setResults(s => ({ ...s, [field]: r }))
       setKeys(k => ({ ...k, [field]: val }))
       setEdits(e => { const n = { ...e }; delete n[field]; return n })
+
+      // Setup-Skill auto-freischalten (api_keys, telegram)
+      const autoSkill = SETUP_SKILL_BY_FIELD[field]
+      if (autoSkill) {
+        try { await markSkillUnlocked(autoSkill) } catch {}
+      }
 
       // Magic Moment: Telegram-Token gespeichert → Webhook automatisch registrieren
       if (field === 'telegram_bot_token') {
@@ -228,6 +252,7 @@ export default function Keys() {
                   onToggleReveal={() => setReveal(r => ({ ...r, [svc.field]: !r[svc.field] }))}
                 />
               ))}
+              {cat.id === 'llm' && keys.llm_api_key && <ExtraLlmManager />}
               {cat.id === 'bot' && keys.telegram_bot_token && (
                 <TelegramStatus
                   keys={keys}
@@ -505,6 +530,117 @@ function ServiceCard({
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+// Multi-LLM: weitere Provider neben dem aktiven verwalten
+// ─────────────────────────────────────────────────────────────
+function ExtraLlmManager() {
+  const [keysState, setKeysState] = useState({ active: null, extras: [] })
+  const [newKey, setNewKey] = useState('')
+  const [newLabel, setNewLabel] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+
+  async function reload() {
+    setKeysState(await fetchAllLlmKeys())
+  }
+  useEffect(() => { reload() }, [])
+
+  async function addKey() {
+    const v = newKey.trim()
+    if (!v) return
+    const p = detectLlmProvider(v)
+    if (!p) { setMsg('Provider nicht erkannt — bekannt sind gsk_/sk-or-/nvapi-/sk-ant-/sk-'); return }
+    setBusy(true); setMsg('')
+    try {
+      await addExtraLlmKey({ key: v, base_url: p.base_url, model: p.model, label: newLabel.trim() })
+      setNewKey(''); setNewLabel('')
+      await reload()
+      setMsg(`✓ ${p.name} hinzugefügt`)
+    } catch (e) { setMsg(`Fehler: ${e.message}`) }
+    setBusy(false)
+  }
+
+  async function activate(idx) {
+    setBusy(true)
+    await swapActiveLlm(idx)
+    await reload()
+    setBusy(false)
+  }
+
+  async function remove(idx) {
+    if (!confirm('Diesen Provider entfernen?')) return
+    setBusy(true)
+    await removeExtraLlmKey(idx)
+    await reload()
+    setBusy(false)
+  }
+
+  return (
+    <div className="bg-gradient-to-br from-purple-500/5 to-blue-500/5 border border-purple-500/20 rounded-2xl p-5">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="font-display text-white text-sm font-bold inline-flex items-center gap-2">
+          ➕ Weitere LLM-Provider parallel
+        </h3>
+        <span className="text-[10px] text-gray-500">
+          {keysState.extras.length} Reserve · 1 aktiv
+        </span>
+      </div>
+      <p className="text-xs text-gray-400 mb-4">
+        Mehrere Anbieter parallel hinterlegen — z.B. Groq fürs Schreiben + OpenRouter als Reserve.
+        Der aktive Provider wird für Skills und Schwarm-Jobs genutzt. Wechseln geht direkt im Bot-Profil.
+      </p>
+
+      {/* Liste der Reserve-Keys */}
+      {keysState.extras.length > 0 && (
+        <div className="space-y-2 mb-4">
+          {keysState.extras.map((k, i) => {
+            const p = detectLlmProvider(k.key)?.name ?? 'Unbekannt'
+            return (
+              <div key={i} className="flex items-center gap-2 p-2.5 rounded-lg bg-white/[0.03] border border-white/10">
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm text-white font-medium">{p}{k.label && <span className="text-gray-400 ml-2 text-xs">— {k.label}</span>}</div>
+                  <div className="text-[10px] text-gray-500 font-mono truncate">{(k.model || '?')}</div>
+                </div>
+                <button onClick={() => activate(i)} disabled={busy}
+                  className="px-2.5 py-1.5 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-200 text-xs rounded border border-emerald-500/30 transition">
+                  ↑ Aktivieren
+                </button>
+                <button onClick={() => remove(i)} disabled={busy}
+                  className="p-1.5 text-gray-400 hover:text-red-300 hover:bg-red-500/10 rounded transition">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Hinzufügen */}
+      <div className="space-y-2">
+        <input
+          value={newKey}
+          onChange={(e) => setNewKey(e.target.value)}
+          type="password"
+          placeholder="Weiterer LLM-Key (gsk_… sk-or-… nvapi-… sk-…)"
+          className="w-full bg-cosmos-800 border border-white/10 focus:border-purple-400 rounded-lg px-3 py-2 text-white text-sm outline-none font-mono"
+        />
+        <input
+          value={newLabel}
+          onChange={(e) => setNewLabel(e.target.value)}
+          maxLength={30}
+          placeholder='Label (optional, z.B. „Backup", „nur Code")'
+          className="w-full bg-cosmos-800 border border-white/10 focus:border-purple-400 rounded-lg px-3 py-2 text-white text-sm outline-none"
+        />
+        <button onClick={addKey} disabled={busy || !newKey.trim()}
+          className="w-full px-3 py-2 bg-purple-500/20 hover:bg-purple-500/30 disabled:opacity-50 text-purple-100 text-sm font-medium rounded-lg border border-purple-500/30 transition">
+          + Als Reserve hinzufügen
+        </button>
+        {msg && <div className="text-xs text-blue-200">{msg}</div>}
+      </div>
     </div>
   )
 }

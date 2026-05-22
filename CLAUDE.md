@@ -6,9 +6,10 @@ Eine lebende Lernplattform für KI, Code und Programmieren — verpackt als „E
 ein Zuhause für die Telegram-Bots der User. Mit echter 3D-Erde auf der Landing-Page
 (NASA-Texturen, echte Sonnenposition, echter Mond, Planeten, Sterne, User-Lichtpunkte
 mit Live-Aktivität), Tech-Baum zum Lernen, Skills die Bot-Befehle werden, und einer
-Schwarm-Pipeline die abends mit gespendeten Resttokens kollektiv Artikel produziert.
+Schwarm-Pipeline in der die Bots der User kollektiv Lern-Artikel produzieren.
 
-**Stand 2026-05-20:** Phase 3 ist gemerged, Schwarm-Pipeline schläft bis 10 spendende User aktiv sind.
+**Stand 2026-05-22:** Phase 4 (Job-Wirtschaft) aktiv. Bots arbeiten serverseitig
+24/7, verdienen Credits, finanzieren Mammut-Projekte. Schwarm aktiv ab 1 Bot.
 
 ## Tech Stack
 
@@ -27,7 +28,11 @@ Schwarm-Pipeline die abends mit gespendeten Resttokens kollektiv Artikel produzi
 ### Tabellen
 | Name | Zweck |
 |---|---|
-| `profiles` | User + ~35 Spalten (API-Keys, Telegram, Cloud, Persona, Standort, Schwarm, is_admin) |
+| `profiles` | User-Profil. API-Keys (inkl. `extra_llm_keys` JSONB für Multi-Provider), Telegram, Cloud, Persona, Standort, `is_admin`. Phase-4-Felder: `bot_at_work`, `job_credits`, `jobs_done_total`, `max_jobs_per_day`, `swarm_jobs_today`, `referral_code`, `referred_by`, `bonus_credits_earned`, `last_daily_credit_at`, `bot_avatar`, `bot_username` |
+| `community_pool` | Earth-Schatzkammer — finanziert Schwarm-Artikel-Jobs |
+| `credit_ledger` | Audit-Log aller Credit-Bewegungen (bonus/job/spend/referral) |
+| `mammoth_tasks` | User-Projekte (Website-Bau) mit dynamischem Job-Plan |
+| `rss_feeds` | RSS-Abos pro User (reminder-tick pollt sie) |
 | `skills` | Skill-Katalog (36 Skills in 7 Pfaden) |
 | `user_skills` | Freigeschaltete Skills pro User |
 | `lesson_sessions` | Laufende/abgeschlossene Lektionen |
@@ -57,7 +62,7 @@ RLS aktiv auf allen Tabellen. pgvector aktiv für RAG.
 | `/lesson/:skillId` | `src/pages/Lesson.jsx` | mixed | 3-Karten-Lektion mit Browser-Demos |
 | `/keys` | `src/pages/Keys.jsx` | ja | 13 Service-Keys + Telegram-Status + Quota-Widget |
 | `/provider` | `src/pages/Provider.jsx` | nein | 40 Free-Tier-Anbieter + Admin-Affiliate-Editor |
-| `/data` | `src/pages/Data.jsx` | ja | Cloud + RAG-Sources + Persona + Briefing + Spende |
+| `/data` | `src/pages/Data.jsx` | ja | Cloud + RAG-Sources + Persona + Briefing |
 | `/erde-lernt` | `src/pages/ErdeLernt.jsx` | mixed | Schwarm-Artikel-Grid + Living-Feed |
 | `/erde-lernt/:slug` | `src/pages/ErdeLernt.jsx` | nein | Artikel-Detail |
 | `/bot` | `src/pages/BotProfile.jsx` | ja | Mein-Bot-Übersicht (Persona, Skills, Stats, Setup-Status) |
@@ -85,9 +90,11 @@ Skills haben `verification_type` der den Lesson-Flow bestimmt:
 | `oauth-cloud` | Frontend POST | Drive-OAuth + Gist-Connect + Disconnect |
 | `ingest-file` | Frontend POST | Datei → Cloud + Embedding |
 | `quota-check` | Frontend POST | Live-Quota-Status aller Provider |
-| `reminder-tick` | pg_cron (jede Minute) | Reminders + Briefings + Schwarm-Orchestrator-Call |
-| `swarm-orchestrator` | von reminder-tick aufgerufen | Job-Assignment in Harvest-Minuten, Pipeline-Progression, Activation-Gate |
-| `swarm-worker` | Frontend POST | Job-Execution mit User-Key, Quality-Score, Apply auf Artikel |
+| `reminder-tick` | pg_cron (jede Minute) | Reminders + Briefings + RSS-Feeds + Schwarm-Orchestrator-Call |
+| `swarm-orchestrator` | von reminder-tick aufgerufen | Job-Assignment, sequenzielle Pipeline-Progression, führt bis 3 Jobs/Tick serverseitig aus, LLM-Auto-Rotation |
+| `swarm-worker` | Orchestrator (Service-Role) oder Frontend POST | Job-Execution mit User-Key, Quality-Score, Credit-Buchung |
+| `mammoth-estimate` | Frontend POST | LLM erstellt Job-Plan + Preis für ein User-Projekt |
+| `start-mammoth` | Frontend POST | Legt Mammut-Task + Job-Pipeline an (pausierbar bei leerem Guthaben) |
 
 ## Schlüssel-System
 
@@ -117,18 +124,31 @@ Aktueller Admin: User `6d2b55e3-8229-435f-9d30-4380f328c2ee` (xxxxwolfxxxx@googl
 Mini-Earth im Header: CSS-only via `.mini-earth`-Klasse in `src/index.css` —
 konische Gradient + radial Shading + 30s Rotation. Kein JS-Bundle.
 
-## Schwarm-Pipeline (Phase 3, dormant)
+## Job-Wirtschaft (Phase 4, aktiv)
 
-7 Job-Typen pro Artikel: topic_propose → research → draft → illustrate → [code_snippet] → review → [revise].
-Pro Spende ein Job, viele Bots arbeiten zusammen.
+**Schwarm-Artikel** (`/erde-lernt`): Pipeline topic_propose → research → draft →
+illustrate → [code_snippet] → review → [revise]. Earth finanziert die Jobs aus
+dem `community_pool`, Bots verdienen pro Job. Artikel laufen sequenziell (älteste
+zuerst, `MAX_PIPELINE_PARALLEL`). Bilder-Stufe wird übersprungen wenn kein Bot
+einen Bild-Key hat — und nachgereicht (`skipped`-Status) sobald einer da ist.
 
-Activation-Gate: 10+ User mit `donate_tokens=true`.
-Harvest-Window: UTC 23:30-23:58.
-Pro User max 3 Jobs/Tag, Plattform-Tages-Cap 1000 Jobs.
+**Bot-Arbeit:** User schickt Bot via `/arbeiten` oder Toggle auf `/bot` los
+(`bot_at_work=true`). Orchestrator weist Jobs zu und führt bis 3/Tick selbst aus.
+Aktivierung ab 1 Bot. Pro User `max_jobs_per_day` (Default 10, einstellbar).
 
-- `_shared/swarmJobs.ts` — Prompts und Pipeline-Logik
+**Credits:** Job = 1 Credit (Schwarm-Artikel: voll aus Pool; Mammut: 10% Steuer
+in Pool). Boni gedeckelt bei 50: Welcome 5, Skill +1, Daily +1, Referral +5.
+
+**Mammut-Projekte:** User-Prompt → `mammoth-estimate` (LLM-Job-Plan + Preis) →
+`start-mammoth`. Bezahlung Job-für-Job; bei leerem Guthaben pausiert der Task
+(`paused_low_credits`) und läuft weiter sobald Credits da sind.
+
+**Multi-LLM:** mehrere LLM-Keys pro User (`extra_llm_keys`), Auto-Rotation zum
+nächsten Provider wenn das Tages-Cap erreicht ist.
+
+- `_shared/swarmJobs.ts` — Artikel-Prompts (einfache Sprache, Alltags-Vergleiche)
+- `_shared/mammothWebsite.ts` — Mammut-Job-Definitionen
 - `_shared/qualityScore.ts` — Regex-Promo-Filter + LLM-Self-Score
-- `_shared/providerLimits.ts` — Reset-Schedules + Quota-Probe
 
 ## Deploy
 
@@ -157,13 +177,15 @@ SUPABASE_ACCESS_TOKEN=<token> npx supabase functions deploy <name> \
 - **astronomy-engine + three.js**: bringen ~1.5 MB JS. Daher LiveEarth lazy.
 - **Bundle-Größe**: Main bei ~462 KB (134 KB gzipped). LiveEarth-Chunk 1.88 MB nur auf Home.
 
-## Aktueller Stand (2026-05-20)
+## Aktueller Stand (2026-05-22)
 
-- **36 Skills** in 7 Pfaden
-- **8 Edge Functions** aktiv
-- **22 Migrations** (20260518 + 100-122)
+- **36 Skills** in 9 Pfaden (inkl. `gemeinschaft`)
+- **10 Edge Functions** aktiv
+- **37 Migrations** (20260518 + 100-136)
 - **13 Routes** (inkl. /bot)
 - **Live-Earth** mit echter Sonne/Mond/5 Planeten/NASA-Sterne/User-Lichter
-- **Schwarm-Pipeline** schläft bis 10+ Bots, dann automatisch aktiv
-- **Code-Splitting** — Main ~462 KB, Pages 6-30 KB, LiveEarth 1.88 MB nur auf Home
+- **Job-Wirtschaft** (Phase 4) aktiv — Bots arbeiten serverseitig 24/7
+- **Rang-System + Ehrenabzeichen** auf /bot
+- **Lektionen** mit „Warum lohnt sich das?"-Block, einfache Sprache
+- **Code-Splitting** — Main ~465 KB, Pages 6-50 KB, LiveEarth 1.88 MB nur auf Home
 - **Mini-Earth-Logo** im Header (CSS-only, kein Bundle-Cost)

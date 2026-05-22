@@ -108,7 +108,7 @@ const TOPICS = [
     color: 'text-purple-400 bg-purple-500/10',
     paragraphs: [
       'Earth 0.1 ist <strong>kein klassischer Online-Kurs</strong>. Du schaust keine Video-Vorlesung, du machst keine Multiple-Choice-Quizze. Stattdessen klickst du dich durch einen <strong>Tech-Baum</strong>: 20 Fähigkeiten in sieben Themen-Pfaden, jede einzelne ein echtes Werkzeug.',
-      'Klickst du eine Fähigkeit an, öffnet sich eine <strong>Drei-Karten-Lektion</strong>: Karte 1 erklärt dir das Konzept in zwei Absätzen (mit anklickbaren Begriffen für ein Mini-Wiki). Karte 2 fordert dich auf, das Werkzeug einmal selbst zu benutzen — entweder direkt im Browser oder per Nachricht an deinen Telegram-Bot. Karte 3 schaltet die Fähigkeit dauerhaft frei. Ab jetzt versteht dein Bot diesen Befehl. Für immer.',
+      'Klickst du eine Fähigkeit an, öffnet sich eine <strong>kompakte Lektion</strong>: Zuerst erfährst du <em>warum sich das für dich lohnt</em> und wie es funktioniert (mit anklickbaren Begriffen für ein Mini-Wiki). Direkt darunter probierst du das Werkzeug einmal selbst aus — im Browser oder per Nachricht an deinen Telegram-Bot. Danach ist die Fähigkeit dauerhaft freigeschaltet. Ab jetzt versteht dein Bot diesen Befehl. Für immer.',
       'Du lernst <em>durch Tun</em>, nicht durch Lesen. Jede Fähigkeit ist 5-10 Minuten kurz. Es gibt keine Hausaufgaben. Es gibt keine Prüfung. Wenn du den Skill nutzt, hast du verstanden was er macht — und dein Bot kann es ab sofort.',
     ],
   },

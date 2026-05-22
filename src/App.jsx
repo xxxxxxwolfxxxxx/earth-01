@@ -21,6 +21,10 @@ const Provider   = lazy(() => import('./pages/Provider'))
 const Data       = lazy(() => import('./pages/Data'))
 const ErdeLernt  = lazy(() => import('./pages/ErdeLernt'))
 const BotProfile = lazy(() => import('./pages/BotProfile'))
+const Impressum   = lazy(() => import('./pages/Legal').then(m => ({ default: m.Impressum })))
+const Datenschutz = lazy(() => import('./pages/Legal').then(m => ({ default: m.Datenschutz })))
+const Agb         = lazy(() => import('./pages/Legal').then(m => ({ default: m.Agb })))
+const NotFound    = lazy(() => import('./pages/Legal').then(m => ({ default: m.NotFound })))
 
 function PageFallback() {
   return (
@@ -55,6 +59,10 @@ export default function App() {
             <Route path="/erde-lernt/:slug" element={<ErdeLernt />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/auth/cloud-callback" element={<AuthCloudCallback />} />
+            <Route path="/impressum" element={<Impressum />} />
+            <Route path="/datenschutz" element={<Datenschutz />} />
+            <Route path="/agb" element={<Agb />} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </Suspense>
       </main>

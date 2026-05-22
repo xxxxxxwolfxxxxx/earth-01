@@ -35,12 +35,23 @@ Deno.serve(async (req) => {
 
   const authHeader = req.headers.get("Authorization") || "";
   const userToken = authHeader.replace(/^Bearer\s+/i, "");
-  const { data: { user } } = await supabase.auth.getUser(userToken);
-  if (!user) return json({ error: "Nicht angemeldet" }, 401);
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
   const body = await req.json().catch(() => ({}));
   const jobId = body?.job_id;
   if (!jobId) return json({ error: "job_id fehlt" }, 400);
+
+  // Zwei Modi:
+  //  a) Browser-Modus — User-JWT, getUser() liefert den User
+  //  b) Server-Modus  — Orchestrator ruft mit Service-Role + body.user_id
+  let user: { id: string };
+  if (userToken === serviceKey && body?.user_id) {
+    user = { id: body.user_id };
+  } else {
+    const { data: { user: authedUser } } = await supabase.auth.getUser(userToken);
+    if (!authedUser) return json({ error: "Nicht angemeldet" }, 401);
+    user = authedUser;
+  }
 
   const { data: job } = await supabase.from("article_jobs")
     .select("id, article_id, job_type, status, assigned_to, required_capability, mammoth_task_id")
@@ -55,6 +66,14 @@ Deno.serve(async (req) => {
   if (!profile || !article) return json({ error: "Daten fehlen" }, 500);
 
   const isMammoth = String(job.job_type).startsWith("mammoth_");
+
+  // Mehrere Job-Typen brauchen das Topic im Kontext (topic_propose, research …).
+  // Immer laden wenn der Artikel ein Topic hat. Fallback {} damit ctx.topic.* nie crasht.
+  let topic: any = {};
+  if (!isMammoth && article.topic_id) {
+    const { data: t } = await supabase.from("topic_pool").select("*").eq("id", article.topic_id).single();
+    if (t) topic = t;
+  }
 
   // Mammoth-Kontext laden (alle bisherigen Job-Results für diese Task)
   let mammothCtx: any = null;
@@ -103,8 +122,9 @@ Deno.serve(async (req) => {
         return json({ error: "LLM-Key fehlt im Profil" }, 400);
       }
       const def = isMammoth ? MAMMOTH_JOBS[job.job_type as keyof typeof MAMMOTH_JOBS] : JOBS[job.job_type as keyof typeof JOBS];
-      const sys = def.buildSystemPrompt(isMammoth ? mammothCtx : { article });
-      const usr = def.buildUserPrompt(isMammoth ? mammothCtx : { article, reviewIssues: article._reviewIssues });
+      const regularCtx = { article, reviewIssues: article._reviewIssues, topic };
+      const sys = def.buildSystemPrompt(isMammoth ? mammothCtx : regularCtx);
+      const usr = def.buildUserPrompt(isMammoth ? mammothCtx : regularCtx);
       const r = await fetch(`${profile.llm_base_url}/chat/completions`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${profile.llm_api_key}` },
@@ -158,11 +178,22 @@ Deno.serve(async (req) => {
     }).eq("id", jobId);
 
     // ── Credits buchen ──
-    await supabase.rpc('book_credits', {
-      p_user_id: user.id,
-      p_user_share: USER_SHARE,
-      p_pool_share: POOL_SHARE,
-    });
+    if (isMammoth) {
+      // Mammut: User hat schon bezahlt (pay_for_mammoth_job), kriegt 0.9 zurück,
+      // 0.1 Steuer fließt in den Pool.
+      await supabase.rpc('book_credits', {
+        p_user_id: user.id,
+        p_user_share: USER_SHARE,
+        p_pool_share: POOL_SHARE,
+      });
+    } else {
+      // Schwarm-Artikel: Earth (Community-Pool) ist Auftraggeber und zahlt den
+      // vollen Lohn. Bot bekommt 1.0 pro Job, keine Steuer.
+      await supabase.rpc('book_article_credits', {
+        p_user_id: user.id,
+        p_amount: 1.0,
+      });
+    }
 
     // ── Mammoth-Progress + ggf. Result auf Task übertragen ──
     if (isMammoth && job.mammoth_task_id) {
@@ -208,7 +239,11 @@ async function applyJobResult(supabase: any, article: any, jobType: string, resu
     case 'draft':
       newBody = result.content; newStatus = 'drafted'; break;
     case 'illustrate':
-      newHero = result.image_url; newStatus = 'illustrated'; break;
+      // Nachgereichte Illustration: Bild setzen, aber einen schon veröffentlichten
+      // Artikel NICHT zurück auf 'illustrated' werfen.
+      newHero = result.image_url;
+      if (article.status !== 'published') newStatus = 'illustrated';
+      break;
     case 'code_snippet':
       if (result.content && !/(kein Code-Snippet)/i.test(result.content)) {
         newBody = `${article.body_markdown}\n\n## Beispiel\n${result.content}`;

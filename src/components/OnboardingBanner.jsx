@@ -63,7 +63,7 @@ const STEP_META = {
 }
 
 // Zeige Banner nicht auf diesen Routen
-const HIDE_ON = ['/login', '/auth/callback']
+const HIDE_ON = ['/login', '/auth/callback', '/bot']
 
 export default function OnboardingBanner() {
   const { user, loading } = useAuth()
@@ -76,6 +76,31 @@ export default function OnboardingBanner() {
   useEffect(() => {
     if (!user) { setLoaded(false); return }
     let cancelled = false
+    const refetch = () => {
+      Promise.all([
+        supabase.from('profiles').select('llm_api_key, telegram_bot_token, telegram_webhook_secret, onboarding_dismissed, bot_at_work, jobs_done_total').eq('id', user.id).single(),
+        supabase.from('user_skills').select('skill_id', { count: 'exact', head: true }).eq('user_id', user.id),
+      ]).then(([p, u]) => {
+        if (cancelled) return
+        setProfile(p.data ?? null)
+        setUnlockedCount(u.count ?? 0)
+        setLoaded(true)
+      })
+    }
+    refetch()
+    // Realtime: Profil-Änderungen (Key gesetzt, Bot verbunden, Skill freigeschaltet)
+    const channel = supabase
+      .channel(`onboarding-${user.id}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${user.id}` }, refetch)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'user_skills', filter: `user_id=eq.${user.id}` }, refetch)
+      .subscribe()
+    return () => { cancelled = true; supabase.removeChannel(channel) }
+  }, [user])
+
+  // Refetch bei Routen-Wechsel — falls Realtime mal hakt
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
     Promise.all([
       supabase.from('profiles').select('llm_api_key, telegram_bot_token, telegram_webhook_secret, onboarding_dismissed, bot_at_work, jobs_done_total').eq('id', user.id).single(),
       supabase.from('user_skills').select('skill_id', { count: 'exact', head: true }).eq('user_id', user.id),
@@ -83,10 +108,9 @@ export default function OnboardingBanner() {
       if (cancelled) return
       setProfile(p.data ?? null)
       setUnlockedCount(u.count ?? 0)
-      setLoaded(true)
     })
     return () => { cancelled = true }
-  }, [user])
+  }, [location.pathname, user])
 
   async function dismiss() {
     setDismissedLocally(true)
